@@ -49,8 +49,7 @@ function calculate(s) {
   const cores=vd.cores||0;
   let base=is3614?(s.int3614?vd.rateWith:vd.rateNo):vd.rate, rate=base;
   const bd=[{label:`Base — ${dd.label} ${vd.label}${is3614?(s.int3614?" (w/ intumescent)":" (w/o intumescent)"):""}`,value:base}];
-  if(isMR&&s.isMarine){const v=cores*6;rate+=v;bd.push({label:`Marine (${cores}c×₹6)`,value:v});}
-  if(isMR&&s.isPF){const v=cores*6;rate+=v;bd.push({label:`P.F. Door (${cores} glue lines×₹6)`,value:v});}
+  if(isMR&&s.isMarine){const v=cores*6;rate+=v;bd.push({label:`Marine Door (${cores}c×₹6)`,value:v});}
   if(is5509&&s.int5509){rate+=50;bd.push({label:"Intumescent strip (IS 5509)",value:50});}
   if(s.laminate){rate+=21;bd.push({label:"Laminate pressing (both sides)",value:21});}
   if(s.groove==="one"){rate+=11;bd.push({label:"Groove — one side",value:11});}
@@ -59,14 +58,14 @@ function calculate(s) {
   if(s.glassGap){const v=isFire?25:20;rate+=v;bd.push({label:`Glass gap`,value:v});}
   if(s.rebate){rate+=10;bd.push({label:"Rebate (Badam)",value:10});}
   if(isMR&&s.plasticPatty){rate+=3;bd.push({label:"Plastic patty",value:3});}
-  const isSmall=wFt<2.5||hFt<5, isBig=wFt>4||hFt>8;
+  const isSmall=wFt<2.5||hFt<5, isBig=wFt>4||hFt>8; // strictly >4ft, width=4ft exactly = no surcharge
   if(isSmall){rate+=10;bd.push({label:"Small door",value:10});}
   if(isBig){const v=isFire?70:50;rate+=v;bd.push({label:"Big door surcharge",value:v});}
   if(qty<10){rate+=3;bd.push({label:"Multi-size",value:3});}
   rate+=15;bd.push({label:"Transport",value:15});
   const doorVal=rate*area*qty, mAmt=doorVal*(mPct/100), gst=(doorVal+mAmt)*0.18;
-  const total=doorVal+mAmt+gst, perDoor=total/qty;
-  return {wFt,hFt,area,rate,bd,doorVal,mAmt,gst,total,perDoor,qty,isSmall,isBig};
+  const total=doorVal+mAmt+gst, perDoor=total/qty, preTaxPerDoor=(doorVal+mAmt)/qty;
+  return {wFt,hFt,area,rate,bd,doorVal,mAmt,gst,total,perDoor,preTaxPerDoor,qty,isSmall,isBig};
 }
 
 
@@ -125,26 +124,27 @@ function Tog({on,set,label,detail}){
 // ─── PRINT ZONE ─────────────────────────────────────────────────────────────
 function PrintZone({quote,client,piRef,dateRef}){
   const subtotal = quote.items.reduce((s,it)=>s+it.totalSet*it.qty,0);
-  const gst = subtotal*0.18;
-  const grandTotal = subtotal+gst;
+  const transport=quote.transport||0, labour=quote.labour||0;
+  const gst = (subtotal+transport+labour)*0.18;
+  const grandTotal = subtotal+transport+labour+gst;
   return (
     <div id="print-zone" style={{fontFamily:"Arial,sans-serif",fontSize:11,color:"#000",background:"#fff",padding:0}}>
-      {/* Header */}
-      <table width="100%" style={{borderBottom:"2px solid #0D2580",paddingBottom:10,marginBottom:10}}>
-        <tbody><tr>
-          <td width="80"><img src={LOGO} width="70" alt="SH Global"/></td>
-          <td style={{paddingLeft:10}}>
-            <div style={{fontSize:18,fontWeight:700,color:"#0D2580",fontFamily:"'Playfair Display',serif"}}>S H Global</div>
-            <div style={{fontSize:9,color:"#555",whiteSpace:"pre-line"}}>{COMPANY.address}</div>
-            <div style={{fontSize:9,color:"#555"}}>GSTN: {COMPANY.gstn}</div>
-          </td>
-          <td style={{textAlign:"right",verticalAlign:"top"}}>
-            <div style={{fontSize:18,fontWeight:700,color:"#7B3A10"}}>PROFORMA INVOICE</div>
-            <div style={{fontSize:10,marginTop:4}}>PI No: <strong>{piRef}</strong></div>
-            <div style={{fontSize:10}}>Date: <strong>{dateRef}</strong></div>
-          </td>
-        </tr></tbody>
-      </table>
+      {/* Header — dark navy bar, logo renders correctly on dark bg */}
+      <div style={{background:"#0D2580",padding:"10px 16px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <img src={LOGO} width="64" alt="SH Global" style={{display:"block",mixBlendMode:"screen",flexShrink:0}}/>
+          <div>
+            <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:17,fontWeight:700,color:"#fff",letterSpacing:".01em"}}>S H Global</div>
+            <div style={{fontSize:8,color:"rgba(255,255,255,0.75)",marginTop:2,whiteSpace:"pre-line",lineHeight:1.5}}>{COMPANY.address}</div>
+            <div style={{fontSize:8,color:"rgba(255,255,255,0.75)"}}>GSTN: {COMPANY.gstn}</div>
+          </div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:17,fontWeight:700,color:"#F0C060",letterSpacing:".06em"}}>PROFORMA INVOICE</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.9)",marginTop:6}}>PI No: <strong style={{color:"#fff"}}>{piRef}</strong></div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.9)"}}>Date: <strong style={{color:"#fff"}}>{dateRef}</strong></div>
+        </div>
+      </div>
 
       {/* Bill To / Ship To */}
       <table width="100%" style={{marginBottom:12}}>
@@ -193,6 +193,16 @@ function PrintZone({quote,client,piRef,dateRef}){
             <td style={{padding:"6px 8px",fontWeight:700,fontSize:10}}>Subtotal</td>
             <td style={{padding:"6px 8px",textAlign:"right",fontWeight:700}}>{fmt(subtotal)}</td>
           </tr>
+          {transport>0&&<tr>
+            <td colSpan={7}/>
+            <td style={{padding:"4px 8px",color:"#444",fontSize:10}}>Transport</td>
+            <td style={{padding:"4px 8px",textAlign:"right",color:"#444"}}>{fmt(transport)}</td>
+          </tr>}
+          {labour>0&&<tr>
+            <td colSpan={7}/>
+            <td style={{padding:"4px 8px",color:"#444",fontSize:10}}>Labour / Other</td>
+            <td style={{padding:"4px 8px",textAlign:"right",color:"#444"}}>{fmt(labour)}</td>
+          </tr>}
           <tr>
             <td colSpan={7}/>
             <td style={{padding:"4px 8px",color:"#444",fontSize:10}}>GST @18%</td>
@@ -232,40 +242,41 @@ function PrintZone({quote,client,piRef,dateRef}){
 }
 
 // ─── CALCULATOR TAB ──────────────────────────────────────────────────────────
-function CalculatorTab({onAddToQuote}){
-  const [doorType,setDoorType]=useState("pine_mr");
-  const [variant,setVariant]=useState("35mm");
-  const [unit,setUnit]=useState("mm");
-  const [width,setWidth]=useState("");
-  const [height,setHeight]=useState("");
-  const [qty,setQty]=useState("1");
-  const [margin,setMargin]=useState("15");
-  const [isMarine,setMarine]=useState(false);
-  const [isPF,setPF]=useState(false);
-  const [laminate,setLaminate]=useState(false);
-  const [groove,setGroove]=useState("none");
-  const [laminateJoint,setLaminateJoint]=useState(false);
-  const [glassGap,setGlassGap]=useState(false);
-  const [rebate,setRebate]=useState(false);
-  const [plasticPatty,setPlasticPatty]=useState(false);
-  const [int5509,setInt5509]=useState(false);
-  const [int3614,setInt3614]=useState(false);
+function CalculatorTab({onAddToQuote, editConfig, editIndex}){
+  const ec=editConfig||{};
+  const [doorType,setDoorType]=useState(ec.doorType||"pine_mr");
+  const [variant,setVariant]=useState(ec.variant||"35mm");
+  const [unit,setUnit]=useState(ec.unit||"mm");
+  const [width,setWidth]=useState(ec.width||"");
+  const [height,setHeight]=useState(ec.height||"");
+  const [qty,setQty]=useState(ec.qty||"1");
+  const [margin,setMargin]=useState(ec.margin||"15");
+  const [isMarine,setMarine]=useState(ec.isMarine||false);
+  const [laminate,setLaminate]=useState(ec.laminate||false);
+  const [groove,setGroove]=useState(ec.groove||"none");
+  const [laminateJoint,setLaminateJoint]=useState(ec.laminateJoint||false);
+  const [glassGap,setGlassGap]=useState(ec.glassGap||false);
+  const [rebate,setRebate]=useState(ec.rebate||false);
+  const [plasticPatty,setPlasticPatty]=useState(ec.plasticPatty||false);
+  const [int5509,setInt5509]=useState(ec.int5509||false);
+  const [int3614,setInt3614]=useState(ec.int3614||false);
   const [added,setAdded]=useState(false);
+
+  const isEditing=editIndex!=null;
 
   const dd=CATALOG[doorType], isMR=dd.type==="mr", isFire=dd.type==="fire";
   const is5509=doorType==="is5509", is3614=doorType==="is3614";
   const vd=dd.variants[variant], cores=vd?.cores||0;
 
-  const changeDoor=dt=>{setDoorType(dt);setVariant(Object.keys(CATALOG[dt].variants)[0]);setMarine(false);setPF(false);setInt5509(false);setInt3614(false);};
+  const changeDoor=dt=>{setDoorType(dt);setVariant(Object.keys(CATALOG[dt].variants)[0]);setMarine(false);setInt5509(false);setInt3614(false);};
 
-  const result=useMemo(()=>calculate({doorType,variant,unit,width,height,qty,margin,isMarine,isPF,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614}),[doorType,variant,unit,width,height,qty,margin,isMarine,isPF,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614]);
+  const result=useMemo(()=>calculate({doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614}),[doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614]);
 
   const handleAdd=()=>{
     if(!result) return;
     const dd2=CATALOG[doorType], vd2=dd2.variants[variant];
     const addons=[];
     if(isMarine) addons.push("Marine");
-    if(isPF) addons.push("P.F.");
     if(int5509) addons.push("Intumescent Strip");
     if(int3614) addons.push(result.int3614?"w/ Intumescent":"w/o Intumescent");
     if(laminate) addons.push("Laminate");
@@ -275,9 +286,9 @@ function CalculatorTab({onAddToQuote}){
     if(glassGap) addons.push("Glass Gap");
     if(rebate) addons.push("Rebate");
     if(plasticPatty) addons.push("Plastic Patty");
-    const wFt=toFt(width,unit), hFt=toFt(height,unit);
     const desc=`${dd2.label} ${vd2.label}${addons.length?" — "+addons.join(", "):""}${width&&height?` (${width}×${height}${unit})`:""}`;
-    onAddToQuote({description:desc, doorPrice:result.perDoor, framePrice:"", installation:"", polishing:"", qty:parseInt(qty)||1, totalSet:result.perDoor});
+    const config={doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614};
+    onAddToQuote({description:desc, doorPrice:result.preTaxPerDoor, framePrice:"", installation:"", polishing:"", qty:parseInt(qty)||1, totalSet:result.preTaxPerDoor, _config:config}, editIndex);
     setAdded(true); setTimeout(()=>setAdded(false),2000);
   };
 
@@ -332,7 +343,6 @@ function CalculatorTab({onAddToQuote}){
           <div className="lbl">Add-ons</div>
           <div style={{display:"flex",flexDirection:"column",gap:7}}>
             {isMR&&<Tog on={isMarine} set={setMarine} label="Marine Door" detail={fmtR(cores*6)}/>}
-            {isMR&&<Tog on={isPF} set={setPF} label="P.F. Door" detail={`${cores} glue line${cores>1?"s":""} × ₹6 = ${fmtR(cores*6)}`}/>}
             {is5509&&<Tog on={int5509} set={setInt5509} label="Intumescent Strip (IS 5509)" detail="₹50/sq.ft"/>}
             <Tog on={laminate} set={setLaminate} label="Laminate Pressing (both sides)" detail="₹21/sq.ft"/>
             <div>
@@ -397,7 +407,7 @@ function CalculatorTab({onAddToQuote}){
           </div>
 
           <button className="btn-brn" style={{width:"100%",fontSize:13}} onClick={handleAdd} disabled={!result}>
-            {added ? "✓ Added to Quote" : "+ Add to Quote"}
+            {added ? (isEditing?"✓ Item Updated":"✓ Added to Quote") : (isEditing?"↩ Update Item in Quote":"+ Add to Quote")}
           </button>
         </>)}
       </div>
@@ -406,11 +416,13 @@ function CalculatorTab({onAddToQuote}){
 }
 
 // ─── QUOTE BUILDER TAB ───────────────────────────────────────────────────────
-function QuoteBuilderTab({items,setItems}){
+function QuoteBuilderTab({items,setItems,onEditItem}){
   const [client,setClient]=useState({name:"",company:"",phone:"",address:"",site:""});
   const [piNo]=useState(piNum());
   const [date]=useState(today());
   const [showPrint,setShowPrint]=useState(false);
+  const [transport,setTransport]=useState("");
+  const [labour,setLabour]=useState("");
 
   const updateItem=(i,field,val)=>{
     const updated=[...items];
@@ -424,11 +436,12 @@ function QuoteBuilderTab({items,setItems}){
   const removeItem=i=>setItems(items.filter((_,idx)=>idx!==i));
 
   const subtotal=items.reduce((s,it)=>s+(it.totalSet||0)*it.qty,0);
-  const gst=subtotal*0.18, grand=subtotal+gst;
+  const extraTransport=parseFloat(transport)||0, extraLabour=parseFloat(labour)||0;
+  const gst=(subtotal+extraTransport+extraLabour)*0.18, grand=subtotal+extraTransport+extraLabour+gst;
 
   const handlePrint=()=>{ setShowPrint(true); setTimeout(()=>{ window.print(); setTimeout(()=>setShowPrint(false),500); },200); };
 
-  const quoteData={items:items.map(it=>({...it,totalSet:(parseFloat(it.doorPrice)||0)+(parseFloat(it.framePrice)||0)+(parseFloat(it.installation)||0)+(parseFloat(it.polishing)||0)}))};
+  const quoteData={items:items.map(it=>({...it,totalSet:(parseFloat(it.doorPrice)||0)+(parseFloat(it.framePrice)||0)+(parseFloat(it.installation)||0)+(parseFloat(it.polishing)||0)})),transport:extraTransport,labour:extraLabour};;
 
   return (
     <div style={{padding:"24px 22px",maxWidth:1100,margin:"0 auto"}}>
@@ -484,7 +497,8 @@ function QuoteBuilderTab({items,setItems}){
                       <input type="number" min="1" value={it.qty} onChange={e=>updateItem(i,"qty",parseInt(e.target.value)||1)} style={{fontSize:11,padding:"4px 6px",textAlign:"center"}}/>
                     </td>
                     <td style={{padding:"8px 10px",textAlign:"right",fontWeight:600,whiteSpace:"nowrap"}}>₹{fmt(totalSet*it.qty)}</td>
-                    <td style={{padding:"8px 10px",textAlign:"center"}}>
+                    <td style={{padding:"8px 6px",textAlign:"center",whiteSpace:"nowrap"}}>
+                      {it._config&&<button onClick={()=>onEditItem(i,it._config)} style={{background:"none",border:`1px solid ${N.acc}`,color:N.acc,cursor:"pointer",fontSize:10,borderRadius:3,padding:"2px 7px",marginRight:4}}>✎ Edit</button>}
                       <button onClick={()=>removeItem(i)} style={{background:"none",border:"none",color:"#C0392B",cursor:"pointer",fontSize:14,lineHeight:1}}>✕</button>
                     </td>
                   </tr>;
@@ -498,12 +512,24 @@ function QuoteBuilderTab({items,setItems}){
       {/* Totals + Print */}
       {items.length>0&&(
         <div style={{display:"flex",justifyContent:"flex-end",gap:20,alignItems:"flex-start"}}>
-          <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:6,padding:"16px 20px",minWidth:280}}>
-            {[["Subtotal",subtotal],["GST @ 18%",gst]].map(([l,v])=>(
-              <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:8,fontSize:13}}>
-                <span style={{color:N.sub}}>{l}</span><span style={{fontWeight:500}}>₹{fmt(v)}</span>
-              </div>
-            ))}
+          <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:6,padding:"16px 20px",minWidth:320}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,fontSize:13}}>
+              <span style={{color:N.sub}}>Subtotal (doors)</span><span style={{fontWeight:500}}>₹{fmt(subtotal)}</span>
+            </div>
+            {/* Transport & Labour extras */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:10}}>
+              <span style={{color:N.sub,fontSize:12,whiteSpace:"nowrap"}}>Transport charges</span>
+              <input type="number" placeholder="0" value={transport} onChange={e=>setTransport(e.target.value)}
+                style={{width:100,fontSize:12,padding:"3px 6px",textAlign:"right"}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:10}}>
+              <span style={{color:N.sub,fontSize:12,whiteSpace:"nowrap"}}>Labour / other charges</span>
+              <input type="number" placeholder="0" value={labour} onChange={e=>setLabour(e.target.value)}
+                style={{width:100,fontSize:12,padding:"3px 6px",textAlign:"right"}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,fontSize:13,paddingTop:8,borderTop:`1px solid ${N.bdr}`}}>
+              <span style={{color:N.sub}}>GST @ 18%</span><span style={{fontWeight:500}}>₹{fmt(gst)}</span>
+            </div>
             <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,borderTop:`2px solid ${N.acc}`,fontSize:16,fontWeight:700,color:N.acc}}>
               <span>Grand Total</span><span>₹{fmt(grand)}</span>
             </div>
@@ -524,6 +550,25 @@ function QuoteBuilderTab({items,setItems}){
 export default function App(){
   const [tab,setTab]=useState("calc");
   const [quoteItems,setQuoteItems]=useState([]);
+  const [editingIndex,setEditingIndex]=useState(null);
+  const [editingConfig,setEditingConfig]=useState(null);
+
+  const handleAddToQuote=(item, idx)=>{
+    if(idx!=null){
+      // Updating an existing item
+      setQuoteItems(p=>p.map((it,i)=>i===idx?{...item,framePrice:it.framePrice,installation:it.installation,polishing:it.polishing,totalSet:(item.doorPrice||0)+(parseFloat(it.framePrice)||0)+(parseFloat(it.installation)||0)+(parseFloat(it.polishing)||0)}:it));
+      setEditingIndex(null); setEditingConfig(null);
+    } else {
+      setQuoteItems(p=>[...p,item]);
+    }
+    setTab("quote");
+  };
+
+  const handleEditItem=(index,config)=>{
+    setEditingIndex(index);
+    setEditingConfig(config);
+    setTab("calc");
+  };
 
   return (
     <div style={{fontFamily:"'IBM Plex Mono',monospace",minHeight:"100vh",background:N.bg,color:N.ink}}>
@@ -537,25 +582,30 @@ export default function App(){
           <div style={{fontSize:9,color:"rgba(255,255,255,0.45)",letterSpacing:".17em",textTransform:"uppercase",marginTop:1}}>Door Quotation System</div>
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:12,alignItems:"center"}}>
+          {editingIndex!=null&&<div style={{background:"#7B3A10",color:"#fff",fontSize:10,padding:"3px 10px",borderRadius:2,letterSpacing:".06em"}}>
+            Editing item #{editingIndex+1}
+          </div>}
           {quoteItems.length>0&&(
             <div style={{background:N.brn,color:"#fff",fontSize:10,padding:"3px 10px",borderRadius:2,letterSpacing:".06em"}}>
               {quoteItems.length} item{quoteItems.length!==1?"s":""} in quote
             </div>
           )}
-          <div style={{fontSize:9,background:"rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",padding:"3px 10px",borderRadius:2,letterSpacing:".1em"}}>v2.0</div>
+          <div style={{fontSize:9,background:"rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",padding:"3px 10px",borderRadius:2,letterSpacing:".1em"}}>v2.1</div>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{background:N.srf,borderBottom:`1px solid ${N.bdr}`,display:"flex",paddingLeft:16}}>
-        <button className={"tab-btn"+(tab==="calc"?" active":"")} onClick={()=>setTab("calc")}>Calculator</button>
+        <button className={"tab-btn"+(tab==="calc"?" active":"")} onClick={()=>setTab("calc")}>
+          Calculator{editingIndex!=null&&<span style={{marginLeft:6,background:"#7B3A10",color:"#fff",fontSize:9,padding:"1px 6px",borderRadius:9,verticalAlign:"middle"}}>editing</span>}
+        </button>
         <button className={"tab-btn"+(tab==="quote"?" active":"")} onClick={()=>setTab("quote")}>
           Quote Builder {quoteItems.length>0&&<span style={{marginLeft:6,background:N.brn,color:"#fff",fontSize:9,padding:"1px 6px",borderRadius:9,verticalAlign:"middle"}}>{quoteItems.length}</span>}
         </button>
       </div>
 
-      {tab==="calc"&&<CalculatorTab onAddToQuote={item=>{setQuoteItems(p=>[...p,item]);setTab("quote");}}/>}
-      {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems}/>}
+      {tab==="calc"&&<CalculatorTab key={editingIndex??'new'} onAddToQuote={handleAddToQuote} editConfig={editingConfig} editIndex={editingIndex}/>}
+      {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem}/>}
     </div>
   );
 }
