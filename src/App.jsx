@@ -50,10 +50,12 @@ const CATALOG={
 
 // ─── FRAME CATALOG ───────────────────────────────────────────────────────────
 const TEAK_SECTIONS={
-  "4x2":  {label:'4" × 2"',  w:4,  h:2,   rates:[{maxH:7.5,rate:1501},{maxH:8.25,rate:1601}]},
-  "5x2":  {label:'5" × 2"',  w:5,  h:2,   rates:[{maxH:7.5,rate:1601},{maxH:8.25,rate:1701}]},
-  "6x2":  {label:'6" × 2"',  w:6,  h:2,   rates:[{maxH:7.5,rate:1701},{maxH:8.25,rate:1801}]},
-  "6x2.5":{label:'6" × 2.5"',w:6,  h:2.5, rates:[{maxH:7.5,rate:1651},{maxH:8.25,rate:1751}]}
+  "4x2":  {label:'4" × 2"',  w:4,  h:2,   rates:[{maxH:7.5,rate:1551},{maxH:8.25,rate:1651}]},
+  "4x2.5":{label:'4" × 2.5"',w:4,  h:2.5, rates:[{maxH:7.5,rate:1551},{maxH:8.25,rate:1651}]},
+  "5x2":  {label:'5" × 2"',  w:5,  h:2,   rates:[{maxH:7.5,rate:1651},{maxH:8.25,rate:1751}]},
+  "5x2.5":{label:'5" × 2.5"',w:5,  h:2.5, rates:[{maxH:7.5,rate:1651},{maxH:8.25,rate:1751}]},
+  "6x2":  {label:'6" × 2"',  w:6,  h:2,   rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1851}]},
+  "6x2.5":{label:'6" × 2.5"',w:6,  h:2.5, rates:[{maxH:7.5,rate:1701},{maxH:8.25,rate:1801}]}
 };
 
 // ─── UTILITIES ───────────────────────────────────────────────────────────────
@@ -91,7 +93,7 @@ function calculate(s){
   const bd=[{label:`Base — ${dd.label} ${vd.label}${is3614?(s.int3614?" (w/ intumescent)":" (w/o intumescent)"):""}`,value:base}];
   if(isMR&&s.isMarine){const v=cores*6;rate+=v;bd.push({label:`Marine Door (${cores}c×₹6)`,value:v});}
   if(is5509&&s.int5509){rate+=50;bd.push({label:"Intumescent strip (IS 5509)",value:50});}
-  if(s.laminate){rate+=21;bd.push({label:"Laminate pressing (both sides)",value:21});}
+  if(s.laminate){rate+=23.5;bd.push({label:"Laminate pressing (both sides)",value:23.5});}
   if(s.groove==="one"){rate+=11;bd.push({label:"Groove — one side",value:11});}
   if(s.groove==="both"){rate+=15;bd.push({label:"Groove — both sides",value:15});}
   if(s.laminateJoint){rate+=2;bd.push({label:"Laminate joint",value:2});}
@@ -103,6 +105,7 @@ function calculate(s){
   if(isSmall){rate+=10;bd.push({label:"Small door",value:10});}
   if(isBig){const v=isFire?70:50;rate+=v;bd.push({label:"Big door surcharge",value:v});}
   if(qty<10){rate+=3;bd.push({label:"Multi-size",value:3});}
+  if(isFire){rate+=3;bd.push({label:"FRD surcharge",value:3});}
   rate+=15;bd.push({label:"Transport",value:15});
   const doorVal=rate*area*qty, mAmt=doorVal*(mPct/100), gst=(doorVal+mAmt)*0.18;
   const total=doorVal+mAmt+gst, perDoor=total/qty, preTaxPerDoor=(doorVal+mAmt)/qty;
@@ -654,7 +657,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}} className="addons-grid">
             {isMR&&<Tog on={isMarine} set={setMarine} label="Marine Door" detail={`+₹${cores*6}/sq.ft`}/>}
             {is5509&&<Tog on={int5509} set={setInt5509} label="Intumescent Strip" detail="+₹50/sq.ft"/>}
-            <Tog on={laminate} set={setLaminate} label="Laminate (both sides)" detail="+₹21/sq.ft"/>
+            <Tog on={laminate} set={setLaminate} label="Laminate (both sides)" detail="+₹23.5/sq.ft"/>
             <div>
               <div className="lbl">Groove</div>
               <div style={{display:"flex",gap:6}}>
