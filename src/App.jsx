@@ -959,10 +959,326 @@ function SavedQuotesTab({onLoadQuote}){
   );
 }
 
+
+// ─── DOOR + FRAME COMBINED CALCULATOR ────────────────────────────────────────
+function DoorFrameCalcTab({onAddToQuote}){
+  const [startMode,setStartMode]=useState("door_first");
+  // Door state
+  const [doorType,setDoorType]=useState("pine_mr");
+  const [variant,setVariant]=useState("35mm");
+  const [unit,setUnit]=useState("mm");
+  const [width,setWidth]=useState("");
+  const [height,setHeight]=useState("");
+  const [margin,setMargin]=useState("15");
+  const [qty,setQty]=useState("1");
+  const [isMarine,setMarine]=useState(false);
+  const [laminate,setLaminate]=useState(false);
+  const [groove,setGroove]=useState("none");
+  const [laminateJoint,setLaminateJoint]=useState(false);
+  const [glassGap,setGlassGap]=useState(false);
+  const [rebate,setRebate]=useState(false);
+  const [plasticPatty,setPlasticPatty]=useState(false);
+  const [int5509,setInt5509]=useState(false);
+  const [int3614,setInt3614]=useState(false);
+  const [teakLipping,setTeakLipping]=useState(false);
+  // Frame state
+  const [species,setSpecies]=useState("red_meranti");
+  const [sectionUnit,setSectionUnit]=useState("inch");
+  const [sectionW,setSectionW]=useState("");
+  const [sectionH,setSectionH]=useState("");
+  const [teakSection,setTeakSection]=useState("4x2");
+  const [openUnit,setOpenUnit]=useState("mm");
+  const [openW,setOpenW]=useState("");
+  const [openH,setOpenH]=useState("");
+  const [horns,setHorns]=useState(false);
+  const [transport,setTransport]=useState("100");
+  const [added,setAdded]=useState(false);
+
+  const isTeak=species==="teak_african";
+  const dd=CATALOG[doorType], isMR=dd.type==="mr", isFire=dd.type==="fire";
+  const is5509=doorType==="is5509", is3614=doorType==="is3614";
+  const vd=dd.variants[variant], cores=vd?.cores||0;
+  const changeDoor=dt=>{setDoorType(dt);setVariant(Object.keys(CATALOG[dt].variants)[0]);setMarine(false);setInt5509(false);setInt3614(false);};
+
+  // Section face (first dimension of frame, in inches)
+  const sectionFaceIn=useMemo(()=>{
+    if(isTeak) return TEAK_SECTIONS[teakSection]?.w||0;
+    return toInchCeil(sectionW,sectionUnit)||0;
+  },[isTeak,teakSection,sectionW,sectionUnit]);
+  const sfFt=sectionFaceIn/12;
+
+  // Door dims in ft
+  const dWFt=toFt(width,unit)||0;
+  const dHFt=toFt(height,unit)||0;
+  // Frame opening dims in ft (frame-first)
+  const fWFt=toFeetQ(openW,openUnit)||0;
+  const fHFt=toFeetQ(openH,openUnit)||0;
+
+  // Auto-derived values
+  const autoFrameW=dWFt&&sfFt?dWFt+2*sfFt:0;
+  const autoFrameH=dHFt&&sfFt?dHFt+sfFt:0;
+  const autoDoorW=fWFt&&sfFt?fWFt-2*sfFt:0;
+  const autoDoorH=fHFt&&sfFt?fHFt-sfFt:0;
+
+  // Effective values for each calc
+  const effDoorW=startMode==="door_first"?dWFt:autoDoorW;
+  const effDoorH=startMode==="door_first"?dHFt:autoDoorH;
+  const effFrameW=startMode==="door_first"?autoFrameW:fWFt;
+  const effFrameH=startMode==="door_first"?autoFrameH:fHFt;
+
+  const doorResult=useMemo(()=>{
+    if(!effDoorW||!effDoorH) return null;
+    return calculate({doorType,variant,unit:"ft",width:effDoorW.toString(),height:effDoorH.toString(),qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping});
+  },[doorType,variant,effDoorW,effDoorH,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping]);
+
+  const frameResult=useMemo(()=>{
+    if(!effFrameW||!effFrameH) return null;
+    return calculateFrame({species,teakSection,sectionW,sectionH,sectionUnit,openW:effFrameW.toString(),openH:effFrameH.toString(),openUnit:"ft",horns,transport,margin,qty});
+  },[species,teakSection,sectionW,sectionH,sectionUnit,effFrameW,effFrameH,horns,transport,margin,qty]);
+
+  const both=doorResult&&frameResult;
+  const combinedPre=(doorResult?.preTaxPerDoor||0)+(frameResult?.perFrame||0);
+  const combinedTotal=combinedPre*1.18;
+
+  const handleAdd=()=>{
+    if(!both) return;
+    const dd2=CATALOG[doorType],vd2=dd2.variants[variant];
+    const specLabel=species==="red_meranti"?"Red Meranti":"Teak African";
+    const secLabel=isTeak?TEAK_SECTIONS[teakSection].label:`${sectionFaceIn}"×${toInchCeil(sectionH,sectionUnit)}"`;
+    const addons=[];
+    if(isMarine) addons.push("Marine");
+    if(laminate) addons.push("Laminate");
+    if(groove==="one") addons.push("Groove 1S");
+    if(groove==="both") addons.push("Groove 2S");
+    if(teakLipping) addons.push("Teak Lipping");
+    if(horns) addons.push("Horns");
+    const dims=`${effDoorW.toFixed(2)}×${effDoorH.toFixed(2)}ft`;
+    const desc=`${dd2.label} ${vd2.label}${addons.length?" — "+addons.join(", "):""}  +  ${specLabel} ${secLabel} Frame (${dims})`;
+    onAddToQuote({description:desc,doorPrice:doorResult.preTaxPerDoor,framePrice:frameResult.perFrame,installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:combinedPre});
+    setAdded(true);setTimeout(()=>setAdded(false),2000);
+  };
+
+  return (
+    <>
+    {both&&<div className="sticky-add">
+      <div className="sticky-price">
+        <small>Door + Frame (excl. GST)</small>₹{fmt(combinedPre)}
+      </div>
+      <button className="btn-primary" style={{padding:"10px 20px",fontSize:13,flexShrink:0}} onClick={handleAdd}>
+        {added?"✓ Added!":"+ Add to Quote"}
+      </button>
+    </div>}
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 360px",minHeight:"calc(100vh - 108px)"}} className="calc-layout">
+      <div style={{padding:"22px 20px",overflowY:"auto",borderRight:`1px solid ${N.bdr}`}} className="calc-panel mob-pad">
+
+        {/* Mode toggle */}
+        <div style={{marginBottom:20,background:N.lite,borderRadius:6,padding:"12px 14px"}}>
+          <div className="lbl" style={{marginBottom:8}}>Starting point</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button className={"chip"+(startMode==="door_first"?" on":"")} onClick={()=>setStartMode("door_first")}>Door size → Frame auto</button>
+            <button className={"chip"+(startMode==="frame_first"?" on":"")} onClick={()=>setStartMode("frame_first")}>Frame opening → Door auto</button>
+          </div>
+          <div style={{fontSize:10,color:N.sub,marginTop:6}}>
+            {startMode==="door_first"?"Enter door dimensions — frame opening calculated automatically":"Enter frame opening — door size calculated automatically"}
+          </div>
+        </div>
+
+        {/* ── DOOR ── */}
+        <div style={{borderLeft:`3px solid ${N.acc}`,paddingLeft:14,marginBottom:22}}>
+          <div style={{fontSize:13,fontWeight:600,color:N.acc,marginBottom:14,fontFamily:"'Playfair Display',serif"}}>Door</div>
+
+          <div style={{marginBottom:14}}>
+            <div className="lbl">Door Type</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}} className="door-grid">
+              {Object.entries(CATALOG).map(([k,d])=>{
+                const fire=d.type==="fire",sel=doorType===k;
+                return <div key={k} className={"card"+(sel?(fire?" fsel":" sel"):"")} onClick={()=>changeDoor(k)}>
+                  <div style={{fontSize:12,fontWeight:600,color:sel?(fire?N.fire:N.acc):N.ink,marginBottom:2}}>{d.label}</div>
+                  <div style={{fontSize:10,color:N.sub}}>{d.sub}</div>
+                </div>;
+              })}
+            </div>
+          </div>
+
+          <div style={{marginBottom:14}}>
+            <div className="lbl">Variant</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {Object.keys(dd.variants).map(v=><button key={v} className={"chip"+(variant===v?(isFire?" fon":" on"):"")} onClick={()=>setVariant(v)}>{dd.variants[v].label}</button>)}
+            </div>
+            {is3614&&<div style={{marginTop:8}}><Tog on={int3614} set={setInt3614} label="With Intumescent Strip" detail={vd?`+₹${vd.rateWith-vd.rateNo}/sq.ft`:""}/></div>}
+          </div>
+
+          {startMode==="door_first"?(
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div className="lbl" style={{marginBottom:0}}>Door Dimensions</div>
+                <div style={{display:"flex",gap:4}}>{["mm","inch","ft"].map(u=><button key={u} className={"chip"+(unit===u?" on":"")} onClick={()=>setUnit(u)}>{u}</button>)}</div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><div className="lbl">Width</div><input type="number" placeholder={unit==="mm"?"e.g. 900":"e.g. 36"} value={width} onChange={e=>setWidth(e.target.value)}/></div>
+                <div><div className="lbl">Height</div><input type="number" placeholder={unit==="mm"?"e.g. 2100":"e.g. 84"} value={height} onChange={e=>setHeight(e.target.value)}/></div>
+              </div>
+              {dWFt>0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>→ {dWFt.toFixed(3)} × {dHFt.toFixed(3)} ft</div>}
+            </div>
+          ):(
+            <div style={{marginBottom:14,background:N.lite,borderRadius:4,padding:"10px 12px"}}>
+              <div className="lbl">Door Size (auto-calculated)</div>
+              {autoDoorW>0?(
+                <div style={{fontSize:14,fontWeight:700,color:N.acc}}>
+                  {autoDoorW.toFixed(3)} × {autoDoorH.toFixed(3)} ft
+                  <div style={{fontSize:10,fontWeight:400,color:N.sub,marginTop:2}}>≈ {(autoDoorW*304.8).toFixed(0)}mm × {(autoDoorH*304.8).toFixed(0)}mm</div>
+                </div>
+              ):<div style={{fontSize:11,color:N.sub}}>Enter frame opening & section size first</div>}
+            </div>
+          )}
+
+          <div style={{marginBottom:4}}>
+            <div className="lbl">Add-ons</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}} className="addons-grid">
+              {isMR&&<Tog on={isMarine} set={setMarine} label="Marine Door" detail={`+₹${cores*6}/sq.ft`}/>}
+              {is5509&&<Tog on={int5509} set={setInt5509} label="Intumescent Strip" detail="+₹50/sq.ft"/>}
+              <Tog on={laminate} set={setLaminate} label="Laminate (both sides)" detail="+₹23.5/sq.ft"/>
+              <div>
+                <div className="lbl">Groove</div>
+                <div style={{display:"flex",gap:6}}>{[["none","None"],["one","One Side"],["both","Both"]].map(([v,l])=><button key={v} className={"chip"+(groove===v?" on":"")} onClick={()=>setGroove(v)}>{l}</button>)}</div>
+              </div>
+              <Tog on={laminateJoint} set={setLaminateJoint} label="Laminate Joint" detail="+₹2/sq.ft"/>
+              <Tog on={glassGap} set={setGlassGap} label="Glass Gap" detail={`+₹${isFire?25:20}/sq.ft`}/>
+              <Tog on={rebate} set={setRebate} label="Rebate (Badam)" detail="+₹10/sq.ft"/>
+              {isMR&&<Tog on={plasticPatty} set={setPlasticPatty} label="Plastic Patty" detail="+₹3/sq.ft"/>}
+              {isMR&&<Tog on={teakLipping} set={setTeakLipping} label="Teak Lipping Patti" detail={lippingRate(variant)?`+₹${lippingRate(variant)}/sq.ft`:"—"}/>}
+            </div>
+          </div>
+        </div>
+
+        {/* ── FRAME ── */}
+        <div style={{borderLeft:`3px solid ${N.brn}`,paddingLeft:14,marginBottom:22}}>
+          <div style={{fontSize:13,fontWeight:600,color:N.brn,marginBottom:14,fontFamily:"'Playfair Display',serif"}}>Frame</div>
+
+          <div style={{marginBottom:14}}>
+            <div className="lbl">Wood Species</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}} className="door-grid">
+              {[["red_meranti","Red Meranti","₹1,200/cft"],["teak_african","Teak African","Rate by section"]].map(([k,lbl,sub])=>(
+                <div key={k} className={"card"+(species===k?" sel":"")} onClick={()=>setSpecies(k)}>
+                  <div style={{fontSize:12,fontWeight:600,color:species===k?N.acc:N.ink,marginBottom:2}}>{lbl}</div>
+                  <div style={{fontSize:10,color:N.sub}}>{sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div className="lbl" style={{marginBottom:0}}>Frame Section</div>
+              {!isTeak&&<div style={{display:"flex",gap:4}}>{["inch","mm"].map(u=><button key={u} className={"chip"+(sectionUnit===u?" on":"")} onClick={()=>setSectionUnit(u)}>{u}</button>)}</div>}
+            </div>
+            {isTeak?(
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {Object.entries(TEAK_SECTIONS).map(([k,s])=>(
+                  <button key={k} className={"chip"+(teakSection===k?" on":"")} onClick={()=>setTeakSection(k)}>{s.label}</button>
+                ))}
+              </div>
+            ):(
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><div className="lbl">Width ({sectionUnit})</div><input type="number" placeholder={sectionUnit==="mm"?"e.g. 100":"e.g. 4"} value={sectionW} onChange={e=>setSectionW(e.target.value)}/>{sectionW&&sectionUnit==="mm"&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toInchCeil(sectionW,"mm")}"</div>}</div>
+                <div><div className="lbl">Depth ({sectionUnit})</div><input type="number" placeholder={sectionUnit==="mm"?"e.g. 50":"e.g. 2"} value={sectionH} onChange={e=>setSectionH(e.target.value)}/>{sectionH&&sectionUnit==="mm"&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toInchCeil(sectionH,"mm")}"</div>}</div>
+              </div>
+            )}
+            {sectionFaceIn>0&&<div style={{fontSize:10,color:N.sub,marginTop:5}}>Face: {sectionFaceIn}" = {sfFt.toFixed(3)} ft per side</div>}
+          </div>
+
+          {startMode==="frame_first"?(
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div className="lbl" style={{marginBottom:0}}>Frame Opening</div>
+                <div style={{display:"flex",gap:4}}>{["mm","inch","ft"].map(u=><button key={u} className={"chip"+(openUnit===u?" on":"")} onClick={()=>setOpenUnit(u)}>{u}</button>)}</div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><div className="lbl">Width ({openUnit})</div><input type="number" placeholder="e.g. 950" value={openW} onChange={e=>setOpenW(e.target.value)}/>{openW&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toFeetQ(openW,openUnit)} ft</div>}</div>
+                <div><div className="lbl">Height ({openUnit})</div><input type="number" placeholder="e.g. 2150" value={openH} onChange={e=>setOpenH(e.target.value)}/>{openH&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toFeetQ(openH,openUnit)} ft</div>}</div>
+              </div>
+            </div>
+          ):(
+            <div style={{marginBottom:14,background:N.lite,borderRadius:4,padding:"10px 12px"}}>
+              <div className="lbl">Frame Opening (auto-calculated)</div>
+              {autoFrameW>0?(
+                <div style={{fontSize:14,fontWeight:700,color:N.brn}}>
+                  {autoFrameW.toFixed(3)} × {autoFrameH.toFixed(3)} ft
+                  <div style={{fontSize:10,fontWeight:400,color:N.sub,marginTop:2}}>≈ {(autoFrameW*304.8).toFixed(0)}mm × {(autoFrameH*304.8).toFixed(0)}mm</div>
+                </div>
+              ):<div style={{fontSize:11,color:N.sub}}>Enter door dimensions & section above</div>}
+            </div>
+          )}
+
+          <Tog on={horns} set={setHorns} label="Horns" detail='+3″ each side'/>
+          <div style={{marginTop:10}}><div className="lbl">Transport (₹)</div><input type="number" value={transport} onChange={e=>setTransport(e.target.value)}/></div>
+        </div>
+
+        {/* Shared */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div><div className="lbl">Qty</div><input type="number" min="1" value={qty} onChange={e=>setQty(e.target.value)}/></div>
+          <div><div className="lbl">Margin %</div><input type="number" min="0" max="100" value={margin} onChange={e=>setMargin(e.target.value)}/></div>
+        </div>
+      </div>
+
+      {/* RIGHT summary */}
+      <div style={{padding:"22px 18px",overflowY:"auto",background:N.lite}} className="summary-panel mob-pad">
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,marginBottom:16,color:N.ink}}>Combined Summary</div>
+
+        {!both&&<div style={{fontSize:12,color:N.sub,textAlign:"center",padding:"30px 0"}}>Enter dimensions to see combined pricing.</div>}
+
+        {doorResult&&(
+          <div style={{background:N.srf,border:`1.5px solid ${N.acc}`,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:600,color:N.acc,marginBottom:8}}>🚪 Door</div>
+            {doorResult.bd.map((r,i)=><div key={i} className="brow"><span>{r.label}</span><span>₹{fmt(r.value)}</span></div>)}
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:8,paddingTop:8,borderTop:`1px solid ${N.bdr}`,fontSize:13,fontWeight:700,color:N.acc}}>
+              <span>Price/Door (pre-GST)</span><span>{fmtC(doorResult.preTaxPerDoor)}</span>
+            </div>
+          </div>
+        )}
+
+        {frameResult&&(
+          <div style={{background:N.srf,border:`1.5px solid ${N.brn}`,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:600,color:N.brn,marginBottom:8}}>🪵 Frame</div>
+            <div className="brow"><span>Running ft</span><span>{frameResult.runningFt} ft</span></div>
+            <div className="brow"><span>Cubic ft (+ 10% wastage)</span><span>{frameResult.cubicFt.toFixed(4)} cft</span></div>
+            <div className="brow"><span>Wood cost (₹{fmt(frameResult.rate)}/cft)</span><span>{fmtC(frameResult.woodCost)}</span></div>
+            <div className="brow"><span>Labour + Transport</span><span>{fmtC(250+frameResult.transport)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:8,paddingTop:8,borderTop:`1px solid ${N.bdr}`,fontSize:13,fontWeight:700,color:N.brn}}>
+              <span>Price/Frame (pre-GST)</span><span>{fmtC(frameResult.perFrame)}</span>
+            </div>
+          </div>
+        )}
+
+        {both&&(
+          <>
+          <div style={{background:N.ink,color:"#F7F9FF",borderRadius:4,padding:"14px 16px",marginBottom:16}}>
+            <div style={{fontSize:9,letterSpacing:".14em",textTransform:"uppercase",color:"#8895C0",marginBottom:10}}>Combined per Set (excl. GST)</div>
+            <div className="brow" style={{borderColor:"#1E2F6E",color:"#C8D0EE"}}><span>Door</span><span>{fmtC(doorResult.preTaxPerDoor)}</span></div>
+            <div className="brow" style={{borderColor:"#1E2F6E",color:"#C8D0EE"}}><span>Frame</span><span>{fmtC(frameResult.perFrame)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:10,paddingTop:10,borderTop:"1px solid #1E2F6E"}}>
+              <span style={{fontSize:9,letterSpacing:".14em",textTransform:"uppercase",color:"#8895C0"}}>Total / Set</span>
+              <span style={{fontSize:20,fontWeight:700}}>₹{fmt(combinedPre)}</span>
+            </div>
+            <div style={{fontSize:10,color:"#8895C0",textAlign:"right",marginTop:4}}>+ 18% GST = ₹{fmt(combinedTotal)}</div>
+            {parseInt(qty)>1&&<div style={{fontSize:11,color:"#C8D0EE",textAlign:"right",marginTop:4}}>× {qty} sets = ₹{fmt(combinedPre*parseInt(qty))} (pre-GST)</div>}
+          </div>
+          <button className="btn-primary" style={{width:"100%",padding:"12px",fontSize:13}} onClick={handleAdd}>
+            {added?"✓ Added to Quote!":"+ Add to Quote"}
+          </button>
+          </>
+        )}
+      </div>
+    </div>
+    </>
+  );
+}
+
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 export default function App(){
   const [tab,setTab]=useState("calc");
-  const [calcMode,setCalcMode]=useState("door"); // "door" | "frame"
+  const [calcMode,setCalcMode]=useState("door"); // "door" | "frame" | "combo" | "combo"
   const [quoteItems,setQuoteItems]=useState([]);
   const [editingIndex,setEditingIndex]=useState(null);
   const [editingConfig,setEditingConfig]=useState(null);
@@ -1020,6 +1336,7 @@ export default function App(){
         <div className="desk-subnav" style={{background:N.lite,borderBottom:`1px solid ${N.bdr}`,padding:"8px 20px",display:"flex",gap:6}}>
           <button className={calcMode==="door"?"btn-primary":"btn-ghost"} style={{fontSize:11,padding:"5px 14px"}} onClick={()=>setCalcMode("door")}>Door</button>
           <button className={calcMode==="frame"?"btn-primary":"btn-ghost"} style={{fontSize:11,padding:"5px 14px"}} onClick={()=>setCalcMode("frame")}>Frame</button>
+          <button className={calcMode==="combo"?"btn-brn":"btn-ghost"} style={{fontSize:11,padding:"5px 14px"}} onClick={()=>setCalcMode("combo")}>Door + Frame</button>
         </div>
       )}
 
@@ -1033,6 +1350,7 @@ export default function App(){
       <div className="main-content">
         {tab==="calc"&&calcMode==="door"&&<DoorCalcTab key={editingIndex??'new'} onAddToQuote={handleAddToQuote} editConfig={editingConfig} editIndex={editingIndex}/>}
         {tab==="calc"&&calcMode==="frame"&&<FrameCalcTab onAddToQuote={handleAddToQuote}/>}
+        {tab==="calc"&&calcMode==="combo"&&<DoorFrameCalcTab onAddToQuote={handleAddToQuote}/>}
         {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")}/>}
         {tab==="saved"&&<SavedQuotesTab onLoadQuote={handleLoadQuote}/>}
       </div>
@@ -1044,6 +1362,9 @@ export default function App(){
         </button>
         <button className={"mob-nav-btn"+(tab==="calc"&&calcMode==="frame"?" active":"")} onClick={()=>{setCalcMode("frame");setTab("calc");}}>
           <span className="mob-nav-icon">🪵</span>Frame
+        </button>
+        <button className={"mob-nav-btn"+(tab==="calc"&&calcMode==="combo"?" active":"")} onClick={()=>{setCalcMode("combo");setTab("calc");}}>
+          <span className="mob-nav-icon">🔗</span>D+F
         </button>
         <button className={"mob-nav-btn"+(tab==="quote"?" active":"")} onClick={()=>setTab("quote")} style={{position:"relative"}}>
           <span className="mob-nav-icon">📋</span>Quote
