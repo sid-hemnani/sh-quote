@@ -55,7 +55,7 @@ const TEAK_SECTIONS={
   "5x2":  {label:'5" × 2"',  w:5,  h:2,   rates:[{maxH:7.5,rate:1651},{maxH:8.25,rate:1751}]},
   "5x2.5":{label:'5" × 2.5"',w:5,  h:2.5, rates:[{maxH:7.5,rate:1651},{maxH:8.25,rate:1751}]},
   "6x2":  {label:'6" × 2"',  w:6,  h:2,   rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1851}]},
-  "6x2.5":{label:'6" × 2.5"',w:6,  h:2.5, rates:[{maxH:7.5,rate:1701},{maxH:8.25,rate:1801}]}
+  "6x2.5":{label:'6" × 2.5"',w:6,  h:2.5, rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1851}]}
 };
 
 // ─── UTILITIES ───────────────────────────────────────────────────────────────
@@ -552,6 +552,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
   const [int5509,setInt5509]=useState(ec.int5509||false);
   const [int3614,setInt3614]=useState(ec.int3614||false);
   const [teakLipping,setTeakLipping]=useState(ec.teakLipping||false);
+  const [laminateCost,setLaminateCost]=useState(ec.laminateCost||"");
   const [added,setAdded]=useState(false);
   const isEditing=editIndex!=null;
   const dd=CATALOG[doorType], isMR=dd.type==="mr", isFire=dd.type==="fire";
@@ -575,9 +576,12 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
     if(rebate) addons.push("Rebate");
     if(plasticPatty) addons.push("Plastic Patty");
     if(teakLipping) addons.push("Teak Lipping");
+    const lamC=parseFloat(laminateCost)||0;
+    if(lamC>0) addons.push(`Lam. ₹${fmt(lamC)}/door`);
     const desc=`${dd2.label} ${vd2.label}${addons.length?" — "+addons.join(", "):""}${width&&height?` (${width}×${height}${unit})`:""}`;
-    const config={doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping};
-    onAddToQuote({description:desc,doorPrice:result.preTaxPerDoor,framePrice:"",installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:result.preTaxPerDoor,_config:config},editIndex);
+    const config={doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost};
+    const finalDoorPrice=result.preTaxPerDoor+(parseFloat(laminateCost)||0);
+    onAddToQuote({description:desc,doorPrice:finalDoorPrice,framePrice:"",installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:finalDoorPrice,_config:config},editIndex);
     setAdded(true);setTimeout(()=>setAdded(false),2000);
   };
 
@@ -587,7 +591,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
     {result&&<div className="sticky-add">
       <div className="sticky-price">
         <small>Per Door (excl. GST)</small>
-        ₹{fmt(result.preTaxPerDoor)}
+        ₹{fmt(result.preTaxPerDoor+(parseFloat(laminateCost)||0))}
       </div>
       <button className="btn-primary" style={{padding:"10px 20px",fontSize:13,flexShrink:0}} onClick={handleAdd}>
         {added?"✓ Added!":(isEditing?"Update":"+ Add to Quote")}
@@ -652,6 +656,12 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:22}}>
           <div><div className="lbl">Qty</div><input type="number" min="1" value={qty} onChange={e=>setQty(e.target.value)}/></div>
           <div><div className="lbl">Margin %</div><input type="number" min="0" max="100" value={margin} onChange={e=>setMargin(e.target.value)}/></div>
+        </div>
+
+        <div style={{marginBottom:22,background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
+          <div className="lbl">Laminate Cost (₹ per door)</div>
+          <input type="number" min="0" placeholder="e.g. 1800 — added directly to door price" value={laminateCost} onChange={e=>setLaminateCost(e.target.value)}/>
+          {parseFloat(laminateCost)>0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>₹{fmt(parseFloat(laminateCost))} added per door — not subject to margin or GST recalculation, included in Price/Door</div>}
         </div>
 
         <div style={{marginBottom:22}}>
