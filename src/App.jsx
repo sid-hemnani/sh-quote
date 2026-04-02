@@ -670,7 +670,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
             <Tog on={glassGap} set={setGlassGap} label="Glass Gap" detail={`+₹${isFire?25:20}/sq.ft`}/>
             <Tog on={rebate} set={setRebate} label="Rebate (Badam)" detail="+₹10/sq.ft"/>
             {isMR&&<Tog on={plasticPatty} set={setPlasticPatty} label="Plastic Patty" detail="+₹3/sq.ft"/>}
-            {isMR&&<Tog on={teakLipping} set={setTeakLipping} label="Teak Lipping Patti" detail={lippingRate(variant)?`+₹${lippingRate(variant)}/sq.ft`:"—"} />}
+            <Tog on={teakLipping} set={setTeakLipping} label="Teak Lipping Patti" detail={lippingRate(variant)?`+₹${lippingRate(variant)}/sq.ft`:"—"} />
           </div>
         </div>
       </div>
@@ -1149,7 +1149,7 @@ function DoorFrameCalcTab({onAddToQuote}){
               <Tog on={glassGap} set={setGlassGap} label="Glass Gap" detail={`+₹${isFire?25:20}/sq.ft`}/>
               <Tog on={rebate} set={setRebate} label="Rebate (Badam)" detail="+₹10/sq.ft"/>
               {isMR&&<Tog on={plasticPatty} set={setPlasticPatty} label="Plastic Patty" detail="+₹3/sq.ft"/>}
-              {isMR&&<Tog on={teakLipping} set={setTeakLipping} label="Teak Lipping Patti" detail={lippingRate(variant)?`+₹${lippingRate(variant)}/sq.ft`:"—"}/>}
+              <Tog on={teakLipping} set={setTeakLipping} label="Teak Lipping Patti" detail={lippingRate(variant)?`+₹${lippingRate(variant)}/sq.ft`:"—"}/>
             </div>
           </div>
         </div>
