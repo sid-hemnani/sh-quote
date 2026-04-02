@@ -140,14 +140,16 @@ function calculateFrame(s){
   }
   const transport=parseFloat(s.transport)||100;
   const mPct=parseFloat(s.margin)||0;
-  const woodCost=cubicFt*rate;
-  const subtotal=woodCost+250+transport;
+  const isTkHigh=s.species==="teak_african"&&hFt>7.75; // >7ft 9in
+  const woodCost=cubicFt*rate+(isTkHigh?50:0);
+  const labour=s.species==="teak_african"?350:250;
+  const subtotal=woodCost+labour+transport;
   const marginAmt=subtotal*(mPct/100);
   const preTax=subtotal+marginAmt;
   const gst=preTax*0.18;
   const total=preTax+gst;
   const qty=Math.max(1,parseInt(s.qty)||1);
-  return {swIn,shIn,wFt,hFt,runningFt,hornExtra,cubicRaw,wastage,cubicFt,rate,woodCost,transport,subtotal,marginAmt,preTax,gst,total,perFrame:preTax,totalPerFrame:total,qty};
+  return {swIn,shIn,wFt,hFt,runningFt,hornExtra,cubicRaw,wastage,cubicFt,rate,woodCost,transport,labour,isTkHigh,subtotal,marginAmt,preTax,gst,total,perFrame:preTax,totalPerFrame:total,qty};
 }
 
 
@@ -500,7 +502,7 @@ function FrameCalcTab({onAddToQuote}){
             <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:600,color:N.ink,marginBottom:8}}>Cost Breakdown</div>
               {R(["Wood cost",fmtC(result.woodCost)])}
-              {R(["Labour",fmtC(250)])}
+              {R(["Labour",fmtC(result.labour||250)])}
               {R(["Transport",fmtC(result.transport)])}
               {R(["Subtotal",fmtC(result.subtotal)])}
               {R([`Margin (${margin}%)`,fmtC(result.marginAmt)])}
@@ -1244,7 +1246,7 @@ function DoorFrameCalcTab({onAddToQuote}){
             <div className="brow"><span>Running ft</span><span>{frameResult.runningFt} ft</span></div>
             <div className="brow"><span>Cubic ft (+ 10% wastage)</span><span>{frameResult.cubicFt.toFixed(4)} cft</span></div>
             <div className="brow"><span>Wood cost (₹{fmt(frameResult.rate)}/cft)</span><span>{fmtC(frameResult.woodCost)}</span></div>
-            <div className="brow"><span>Labour + Transport</span><span>{fmtC(250+frameResult.transport)}</span></div>
+            <div className="brow"><span>Labour + Transport</span><span>{fmtC((frameResult.labour||250)+frameResult.transport)}</span></div>
             <div style={{display:"flex",justifyContent:"space-between",marginTop:8,paddingTop:8,borderTop:`1px solid ${N.bdr}`,fontSize:13,fontWeight:700,color:N.brn}}>
               <span>Price/Frame (pre-GST)</span><span>{fmtC(frameResult.perFrame)}</span>
             </div>
