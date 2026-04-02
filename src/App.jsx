@@ -1003,11 +1003,17 @@ function DoorFrameCalcTab({onAddToQuote}){
   const changeDoor=dt=>{setDoorType(dt);setVariant(Object.keys(CATALOG[dt].variants)[0]);setMarine(false);setInt5509(false);setInt3614(false);};
 
   // Section face (first dimension of frame, in inches)
+  // Section face width (display/label only)
   const sectionFaceIn=useMemo(()=>{
     if(isTeak) return TEAK_SECTIONS[teakSection]?.w||0;
     return toInchCeil(sectionW,sectionUnit)||0;
   },[isTeak,teakSection,sectionW,sectionUnit]);
-  const sfFt=sectionFaceIn/12;
+  // Section DEPTH — this is what determines door clearance
+  const sectionDepthIn=useMemo(()=>{
+    if(isTeak) return TEAK_SECTIONS[teakSection]?.h||0;
+    return toInchCeil(sectionH,sectionUnit)||0;
+  },[isTeak,teakSection,sectionH,sectionUnit]);
+  const sfFt=sectionDepthIn/12; // use depth for door size math
 
   // Door dims in ft
   const dWFt=toFt(width,unit)||0;
@@ -1187,7 +1193,7 @@ function DoorFrameCalcTab({onAddToQuote}){
                 <div><div className="lbl">Depth ({sectionUnit})</div><input type="number" placeholder={sectionUnit==="mm"?"e.g. 50":"e.g. 2"} value={sectionH} onChange={e=>setSectionH(e.target.value)}/>{sectionH&&sectionUnit==="mm"&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toInchCeil(sectionH,"mm")}"</div>}</div>
               </div>
             )}
-            {sectionFaceIn>0&&<div style={{fontSize:10,color:N.sub,marginTop:5}}>Face: {sectionFaceIn}" = {sfFt.toFixed(3)} ft per side</div>}
+            {sectionFaceIn>0&&<div style={{fontSize:10,color:N.sub,marginTop:5}}>Face: {sectionFaceIn}" | Depth: {sectionDepthIn}" = {sfFt.toFixed(3)} ft (used for door clearance)</div>}
           </div>
 
           {startMode==="frame_first"?(
