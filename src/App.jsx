@@ -40,7 +40,7 @@ const TNC=["Government taxes as applicable over and above the quoted rates.","Tr
 
 // ─── DOOR CATALOG ────────────────────────────────────────────────────────────
 const CATALOG={
-  pine_mr:    {label:"Pine MR Door",    sub:"Occum Face",       type:"mr",   variants:{"30mm":{rate:85,cores:1,label:"30mm"},"35mm":{rate:90,cores:1,label:"35mm"},"40mm":{rate:105,cores:2,label:"40mm"},"45mm":{rate:120,cores:3,label:"45mm"}}},
+  pine_mr:    {label:"Pine MR Door",    sub:"Occum Face",       type:"mr",   variants:{"30mm":{rate:90,cores:1,label:"30mm"},"35mm":{rate:95,cores:1,label:"35mm"},"40mm":{rate:110,cores:2,label:"40mm"},"45mm":{rate:125,cores:3,label:"45mm"}}},
   hardwood_mr:{label:"Hardwood MR Door",sub:"Occum Face",       type:"mr",   variants:{"30mm":{rate:64,cores:1,label:"30mm"},"35mm":{rate:72,cores:1,label:"35mm"}}},
   is5509:     {label:"IS 5509",         sub:"Fire Door",        type:"fire", variants:{"40mm_60":{rate:160,label:"40mm / 60 min"},"45mm_60":{rate:160,label:"45mm / 60 min"},"45mm_120":{rate:185,label:"45mm / 120 min"}}},
   is3614:     {label:"IS 3614",         sub:"Fire Door · BS 476",type:"fire", variants:{"45mm_60":{rateNo:235,rateWith:285,label:"45mm / 60 min",intumescentBaked:true},"45mm_120":{rateNo:310,rateWith:360,label:"45mm / 120 min",intumescentBaked:true},"55mm_120":{rateNo:360,rateWith:410,label:"55mm / 120 min",intumescentBaked:true}}}
@@ -367,10 +367,17 @@ function FrameCalcTab({onAddToQuote}){
   const [openH,setOpenH]=useState("");
   const [horns,setHorns]=useState(false);
   const [transport,setTransport]=useState("100");
+  const [mouldingRate,setMouldingRate]=useState("");
   const [margin,setMargin]=useState("15");
   const [qty,setQty]=useState("1");
   const [added,setAdded]=useState(false);
   const isTeak=species==="teak_african";
+
+  const mouldingCost=useMemo(()=>{
+    if(!result||!parseFloat(mouldingRate)) return 0;
+    const runFt=2*result.hFt+result.wFt; // 2H+W, no horns
+    return runFt*(parseFloat(mouldingRate)||0);
+  },[result,mouldingRate]);
 
   const result=useMemo(()=>calculateFrame({species,teakSection,sectionW,sectionH,sectionUnit,openW,openH,openUnit,horns,transport,margin,qty}),[species,teakSection,sectionW,sectionH,sectionUnit,openW,openH,openUnit,horns,transport,margin,qty]);
 
@@ -379,7 +386,10 @@ function FrameCalcTab({onAddToQuote}){
     const specLabel=species==="red_meranti"?"Red Meranti":"Teak African";
     const secLabel=isTeak?TEAK_SECTIONS[teakSection].label:`${toInchCeil(sectionW,sectionUnit)}" × ${toInchCeil(sectionH,sectionUnit)}"`;
     const desc=`Frame — ${specLabel} ${secLabel} (${result.wFt}×${result.hFt}ft)${horns?" + Horns":""}`;
-    onAddToQuote({description:desc,doorPrice:"",framePrice:result.perFrame,installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:result.perFrame,_frameResult:result});
+    const mCost=mouldingCost;
+    const mDesc=mCost>0?` + Moulding Patti`:"";
+    const totalFrame=result.perFrame+mCost;
+    onAddToQuote({description:desc+mDesc,doorPrice:"",framePrice:totalFrame,installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:totalFrame,_frameResult:result});
     setAdded(true);setTimeout(()=>setAdded(false),2000);
   };
 
@@ -391,7 +401,7 @@ function FrameCalcTab({onAddToQuote}){
     {result&&<div className="sticky-add">
       <div className="sticky-price">
         <small>Per Frame (excl. GST)</small>
-        ₹{fmt(result.perFrame)}
+        ₹{fmt(result.perFrame+mouldingCost)}
       </div>
       <button className="btn-primary" style={{padding:"10px 20px",fontSize:13,flexShrink:0}} onClick={handleAdd}>
         {added?"✓ Added!":"+ Add to Quote"}
@@ -470,6 +480,11 @@ function FrameCalcTab({onAddToQuote}){
           <div><div className="lbl">Qty</div><input type="number" min="1" value={qty} onChange={e=>setQty(e.target.value)}/></div>
           <div><div className="lbl">Margin %</div><input type="number" min="0" value={margin} onChange={e=>setMargin(e.target.value)}/></div>
           <div><div className="lbl">Transport (₹)</div><input type="number" value={transport} onChange={e=>setTransport(e.target.value)}/></div>
+        </div>
+        <div style={{marginBottom:8,background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"10px 12px"}}>
+          <div className="lbl">Moulding Patti (₹ per running ft)</div>
+          <input type="number" min="0" placeholder="Leave blank if not applicable" value={mouldingRate} onChange={e=>setMouldingRate(e.target.value)}/>
+          {parseFloat(mouldingRate)>0&&result&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>2×{result.hFt} + {result.wFt} = {(2*result.hFt+result.wFt).toFixed(2)} running ft → ₹{fmt(mouldingCost)} added to frame price</div>}
         </div>
       </div>
 
@@ -1004,6 +1019,8 @@ function DoorFrameCalcTab({onAddToQuote}){
   const [openH,setOpenH]=useState("");
   const [horns,setHorns]=useState(false);
   const [transport,setTransport]=useState("100");
+  const [laminateCost,setLaminateCost]=useState("");
+  const [mouldingRate,setMouldingRate]=useState("");
   const [added,setAdded]=useState(false);
 
   const isTeak=species==="teak_african";
@@ -1055,7 +1072,13 @@ function DoorFrameCalcTab({onAddToQuote}){
   },[species,teakSection,sectionW,sectionH,sectionUnit,effFrameW,effFrameH,horns,transport,margin,qty]);
 
   const both=doorResult&&frameResult;
-  const combinedPre=(doorResult?.preTaxPerDoor||0)+(frameResult?.perFrame||0);
+  const mouldingCost=useMemo(()=>{
+    if(!frameResult||!parseFloat(mouldingRate)) return 0;
+    const runFt=2*frameResult.hFt+frameResult.wFt;
+    return runFt*(parseFloat(mouldingRate)||0);
+  },[frameResult,mouldingRate]);
+  const lamC=parseFloat(laminateCost)||0;
+  const combinedPre=(doorResult?.preTaxPerDoor||0)+(frameResult?.perFrame||0)+lamC+mouldingCost;
   const combinedTotal=combinedPre*1.18;
 
   const handleAdd=()=>{
@@ -1072,7 +1095,9 @@ function DoorFrameCalcTab({onAddToQuote}){
     if(horns) addons.push("Horns");
     const dims=`${effDoorW.toFixed(2)}×${effDoorH.toFixed(2)}ft`;
     const desc=`${dd2.label} ${vd2.label}${addons.length?" — "+addons.join(", "):""}  +  ${specLabel} ${secLabel} Frame (${dims})`;
-    onAddToQuote({description:desc,doorPrice:doorResult.preTaxPerDoor,framePrice:frameResult.perFrame,installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:combinedPre});
+    const finalDoorPrice=doorResult.preTaxPerDoor+lamC;
+    const finalFramePrice=frameResult.perFrame+mouldingCost;
+    onAddToQuote({description:desc,doorPrice:finalDoorPrice,framePrice:finalFramePrice,installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:combinedPre});
     setAdded(true);setTimeout(()=>setAdded(false),2000);
   };
 
@@ -1234,9 +1259,21 @@ function DoorFrameCalcTab({onAddToQuote}){
         </div>
 
         {/* Shared */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
           <div><div className="lbl">Qty</div><input type="number" min="1" value={qty} onChange={e=>setQty(e.target.value)}/></div>
           <div><div className="lbl">Margin %</div><input type="number" min="0" max="100" value={margin} onChange={e=>setMargin(e.target.value)}/></div>
+        </div>
+
+        <div style={{background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px",marginBottom:14}}>
+          <div className="lbl" style={{marginBottom:8}}>Laminate Cost (₹ per door)</div>
+          <input type="number" min="0" placeholder="e.g. 1800 — added to door price" value={laminateCost} onChange={e=>setLaminateCost(e.target.value)}/>
+          {parseFloat(laminateCost)>0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>₹{fmt(parseFloat(laminateCost))} added per door · not subject to margin/GST</div>}
+        </div>
+
+        <div style={{background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
+          <div className="lbl" style={{marginBottom:8}}>Moulding Patti (₹ per running ft)</div>
+          <input type="number" min="0" placeholder="Leave blank if not applicable" value={mouldingRate} onChange={e=>setMouldingRate(e.target.value)}/>
+          {parseFloat(mouldingRate)>0&&frameResult&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>2×{frameResult.hFt} + {frameResult.wFt} = {(2*frameResult.hFt+frameResult.wFt).toFixed(2)} running ft → ₹{fmt(mouldingCost)} added to frame price</div>}
         </div>
       </div>
 
@@ -1263,8 +1300,9 @@ function DoorFrameCalcTab({onAddToQuote}){
             <div className="brow"><span>Cubic ft (+ 10% wastage)</span><span>{frameResult.cubicFt.toFixed(4)} cft</span></div>
             <div className="brow"><span>Wood cost (₹{fmt(frameResult.rate)}/cft)</span><span>{fmtC(frameResult.woodCost)}</span></div>
             <div className="brow"><span>Labour + Transport</span><span>{fmtC((frameResult.labour||250)+frameResult.transport)}</span></div>
+            {mouldingCost>0&&<div className="brow"><span>Moulding Patti</span><span>{fmtC(mouldingCost)}</span></div>}
             <div style={{display:"flex",justifyContent:"space-between",marginTop:8,paddingTop:8,borderTop:`1px solid ${N.bdr}`,fontSize:13,fontWeight:700,color:N.brn}}>
-              <span>Price/Frame (pre-GST)</span><span>{fmtC(frameResult.perFrame)}</span>
+              <span>Price/Frame (pre-GST)</span><span>{fmtC(frameResult.perFrame+mouldingCost)}</span>
             </div>
           </div>
         )}
@@ -1274,7 +1312,9 @@ function DoorFrameCalcTab({onAddToQuote}){
           <div style={{background:N.ink,color:"#F7F9FF",borderRadius:4,padding:"14px 16px",marginBottom:16}}>
             <div style={{fontSize:9,letterSpacing:".14em",textTransform:"uppercase",color:"#8895C0",marginBottom:10}}>Combined per Set (excl. GST)</div>
             <div className="brow" style={{borderColor:"#1E2F6E",color:"#C8D0EE"}}><span>Door</span><span>{fmtC(doorResult.preTaxPerDoor)}</span></div>
+            {lamC>0&&<div className="brow" style={{borderColor:"#1E2F6E",color:"#C8D0EE"}}><span>Laminate</span><span>{fmtC(lamC)}</span></div>}
             <div className="brow" style={{borderColor:"#1E2F6E",color:"#C8D0EE"}}><span>Frame</span><span>{fmtC(frameResult.perFrame)}</span></div>
+            {mouldingCost>0&&<div className="brow" style={{borderColor:"#1E2F6E",color:"#C8D0EE"}}><span>Moulding Patti</span><span>{fmtC(mouldingCost)}</span></div>}
             <div style={{display:"flex",justifyContent:"space-between",marginTop:10,paddingTop:10,borderTop:"1px solid #1E2F6E"}}>
               <span style={{fontSize:9,letterSpacing:".14em",textTransform:"uppercase",color:"#8895C0"}}>Total / Set</span>
               <span style={{fontSize:20,fontWeight:700}}>₹{fmt(combinedPre)}</span>
