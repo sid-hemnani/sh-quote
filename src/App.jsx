@@ -64,7 +64,14 @@ const fmt=n=>new Intl.NumberFormat("en-IN",{maximumFractionDigits:2}).format(n);
 const fmtC=n=>`\u20B9${fmt(n)}`;
 const fmtR=n=>`\u20B9${fmt(n)}/sq.ft`;
 const today=()=>{const d=new Date();return d.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"});};
-const piNum=()=>{const d=new Date();return `SHG${String(d.getFullYear()).slice(2)}/${String(d.getFullYear()+1).slice(2)}-${String(Math.floor(Math.random()*900)+100)}`;};
+const getNextQuoteNum=async()=>{
+  try{
+    const db=getDB(); if(!db) return "SHG-001";
+    const s=await getDocs(query(collection(db,"quotes"),orderBy("savedAt","desc")));
+    const num=s.docs.length+1;
+    return `SHQ-${String(num).padStart(3,"0")}`;
+  }catch(e){return "SHQ-001";}
+};
 // round up to nearest 0.25ft
 const roundUpQ=v=>Math.ceil(v*4)/4;
 // convert to feet and round up to nearest 0.25
@@ -96,7 +103,7 @@ function calculate(s){
   if(s.laminate){rate+=23.5;bd.push({label:"Laminate pressing (both sides)",value:23.5});}
   if(s.groove==="one"){rate+=11;bd.push({label:"Groove — one side",value:11});}
   if(s.groove==="both"){rate+=15;bd.push({label:"Groove — both sides",value:15});}
-  if(s.laminateJoint){rate+=2;bd.push({label:"Laminate joint",value:2});}
+  if(s.laminateJoint>0){const ljv=s.laminateJoint*2;rate+=ljv;bd.push({label:`Laminate joint (×${s.laminateJoint})`,value:ljv});}
   if(s.glassGap){const v=isFire?25:20;rate+=v;bd.push({label:"Glass gap",value:v});}
   if(s.rebate){rate+=10;bd.push({label:"Rebate (Badam)",value:10});}
   if(isMR&&s.plasticPatty){rate+=3;bd.push({label:"Plastic patty",value:3});}
@@ -259,7 +266,7 @@ function Tog({on,set,label,detail}){
 }
 
 // ─── PRINT ZONE ──────────────────────────────────────────────────────────────
-function PrintZone({quote,client,piRef,dateRef}){
+function PrintZone({quote,client,piRef,dateRef,validRef}){
   const subtotal=quote.items.reduce((s,it)=>s+it.totalSet*it.qty,0);
   const transport=quote.transport||0, labour=quote.labour||0;
   const gst=(subtotal+transport+labour)*0.18;
@@ -269,7 +276,7 @@ function PrintZone({quote,client,piRef,dateRef}){
       {/* Header — dark navy bar */}
       <div style={{background:"#0D2580",padding:"10px 16px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <img src={LOGO} width="60" alt="SH Global" style={{display:"block",mixBlendMode:"screen",flexShrink:0}}/>
+          <img src={LOGO} width="70" alt="SH Global" style={{display:"block",filter:"brightness(0) invert(1)",flexShrink:0}}/>
           <div>
             <div style={{fontFamily:"Georgia,serif",fontSize:16,fontWeight:700,color:"#fff"}}>S H Global</div>
             <div style={{fontSize:8,color:"rgba(255,255,255,0.8)",marginTop:2,whiteSpace:"pre-line",lineHeight:1.5}}>{COMPANY.address}</div>
@@ -277,9 +284,11 @@ function PrintZone({quote,client,piRef,dateRef}){
           </div>
         </div>
         <div style={{textAlign:"right"}}>
-          <div style={{fontSize:16,fontWeight:700,color:"#F0C060",letterSpacing:".06em"}}>PROFORMA INVOICE</div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.9)",marginTop:5}}>PI No: <strong style={{color:"#fff"}}>{piRef}</strong></div>
+          <div style={{fontSize:16,fontWeight:700,color:"#F0C060",letterSpacing:".06em"}}>QUOTATION</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.9)",marginTop:5}}>Quote No: <strong style={{color:"#fff"}}>{piRef}</strong></div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.9)"}}>Date: <strong style={{color:"#fff"}}>{dateRef}</strong></div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.65)",marginTop:2}}>Valid for 7 days from date of issue</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.9)"}}>Valid Until: <strong style={{color:"#fff"}}>{validRef}</strong></div>
         </div>
       </div>
 
@@ -564,7 +573,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
   const [isMarine,setMarine]=useState(ec.isMarine||false);
   const [laminate,setLaminate]=useState(ec.laminate||false);
   const [groove,setGroove]=useState(ec.groove||"none");
-  const [laminateJoint,setLaminateJoint]=useState(ec.laminateJoint||false);
+  const [laminateJoint,setLaminateJoint]=useState(ec.laminateJoint||0);
   const [glassGap,setGlassGap]=useState(ec.glassGap||false);
   const [rebate,setRebate]=useState(ec.rebate||false);
   const [plasticPatty,setPlasticPatty]=useState(ec.plasticPatty||false);
@@ -590,7 +599,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
     if(laminate) addons.push("Laminate");
     if(groove==="one") addons.push("Groove 1S");
     if(groove==="both") addons.push("Groove 2S");
-    if(laminateJoint) addons.push("Lam. Joint");
+    if(laminateJoint>0) addons.push(`Lam. Joint ×${laminateJoint}`);
     if(glassGap) addons.push("Glass Gap");
     if(rebate) addons.push("Rebate");
     if(plasticPatty) addons.push("Plastic Patty");
@@ -692,7 +701,13 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
                 {[["none","None"],["one","One Side"],["both","Both"]].map(([v,l])=><button key={v} className={"chip"+(groove===v?" on":"")} onClick={()=>setGroove(v)}>{l}</button>)}
               </div>
             </div>
-            <Tog on={laminateJoint} set={setLaminateJoint} label="Laminate Joint" detail="+₹2/sq.ft"/>
+            <div>
+                <div className="lbl">Laminate Joints</div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <input type="number" min="0" max="10" placeholder="0" value={laminateJoint||""} onChange={e=>setLaminateJoint(parseInt(e.target.value)||0)} style={{width:70}}/>
+                  {laminateJoint>0&&<span style={{fontSize:10,color:N.sub}}>+₹{laminateJoint*2}/sq.ft</span>}
+                </div>
+              </div>
             <Tog on={glassGap} set={setGlassGap} label="Glass Gap" detail={`+₹${isFire?25:20}/sq.ft`}/>
             <Tog on={rebate} set={setRebate} label="Rebate (Badam)" detail="+₹10/sq.ft"/>
             {isMR&&<Tog on={plasticPatty} set={setPlasticPatty} label="Plastic Patty" detail="+₹3/sq.ft"/>}
@@ -754,13 +769,17 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
 // ─── QUOTE BUILDER TAB ───────────────────────────────────────────────────────
 function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote}){
   const [client,setClient]=useState({name:"",company:"",phone:"",address:"",site:""});
-  const [piNo]=useState(piNum());
+  const [piNo,setPiNo]=useState("SHQ-…");
+  useEffect(()=>{getNextQuoteNum().then(setPiNo);},[]);
   const [date]=useState(today());
+  const [validity]=useState(()=>{const d=new Date();d.setDate(d.getDate()+7);return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});});
   const [showPrint,setShowPrint]=useState(false);
   const [transport,setTransport]=useState("");
   const [labour,setLabour]=useState("");
   const [saving,setSaving]=useState(false);
   const [saveMsg,setSaveMsg]=useState("");
+
+  useEffect(()=>{getNextQuoteNum().then(n=>setPiNo(n));},[]);
 
   const updateItem=(i,field,val)=>{
     const u=[...items]; u[i]={...u[i],[field]:val};
@@ -793,7 +812,7 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote}){
 
   return (
     <div style={{padding:"22px 20px",maxWidth:1100,margin:"0 auto"}} className="mob-pad">
-      {showPrint&&<PrintZone quote={quoteData} client={client} piRef={piNo} dateRef={date}/>}
+      {showPrint&&<PrintZone quote={quoteData} client={client} piRef={piNo} dateRef={date} validRef={validity}/>}
 
       {/* Client */}
       <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:6,padding:"18px 20px",marginBottom:18}}>
@@ -1002,7 +1021,7 @@ function DoorFrameCalcTab({onAddToQuote}){
   const [isMarine,setMarine]=useState(false);
   const [laminate,setLaminate]=useState(false);
   const [groove,setGroove]=useState("none");
-  const [laminateJoint,setLaminateJoint]=useState(false);
+  const [laminateJoint,setLaminateJoint]=useState(0);
   const [glassGap,setGlassGap]=useState(false);
   const [rebate,setRebate]=useState(false);
   const [plasticPatty,setPlasticPatty]=useState(false);
@@ -1185,7 +1204,13 @@ function DoorFrameCalcTab({onAddToQuote}){
                 <div className="lbl">Groove</div>
                 <div style={{display:"flex",gap:6}}>{[["none","None"],["one","One Side"],["both","Both"]].map(([v,l])=><button key={v} className={"chip"+(groove===v?" on":"")} onClick={()=>setGroove(v)}>{l}</button>)}</div>
               </div>
-              <Tog on={laminateJoint} set={setLaminateJoint} label="Laminate Joint" detail="+₹2/sq.ft"/>
+              <div>
+                <div className="lbl">Laminate Joints</div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <input type="number" min="0" max="10" placeholder="0" value={laminateJoint||""} onChange={e=>setLaminateJoint(parseInt(e.target.value)||0)} style={{width:70}}/>
+                  {laminateJoint>0&&<span style={{fontSize:10,color:N.sub}}>+₹{laminateJoint*2}/sq.ft</span>}
+                </div>
+              </div>
               <Tog on={glassGap} set={setGlassGap} label="Glass Gap" detail={`+₹${isFire?25:20}/sq.ft`}/>
               <Tog on={rebate} set={setRebate} label="Rebate (Badam)" detail="+₹10/sq.ft"/>
               {isMR&&<Tog on={plasticPatty} set={setPlasticPatty} label="Plastic Patty" detail="+₹3/sq.ft"/>}
@@ -1365,7 +1390,7 @@ export default function App(){
 
       {/* Header */}
       <div style={{background:"#0a0f1e",padding:"10px 16px",display:"flex",alignItems:"center",gap:12}}>
-        <img src={LOGO} alt="SH Global" style={{height:40,width:"auto",mixBlendMode:"screen",flexShrink:0}}/>
+        <img src={LOGO} alt="SH Global" style={{height:40,width:"auto",filter:"brightness(0) invert(1)",flexShrink:0}}/>
         <div style={{borderLeft:"1px solid rgba(255,255,255,0.2)",paddingLeft:12}}>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,color:"#fff",letterSpacing:".01em"}}>S H Global</div>
           <div className="hdr-sub" style={{fontSize:9,color:"rgba(255,255,255,0.45)",letterSpacing:".15em",textTransform:"uppercase",marginTop:1}}>Door Quotation System</div>
