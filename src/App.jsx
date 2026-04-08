@@ -276,7 +276,7 @@ function PrintZone({quote,client,piRef,dateRef,validRef}){
       {/* Header — dark navy bar */}
       <div style={{background:"#0D2580",padding:"10px 16px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <img src={LOGO} width="70" alt="SH Global" style={{display:"block",filter:"brightness(0) invert(1)",flexShrink:0}}/>
+          <img src={LOGO} width="70" alt="SH Global" style={{display:"block",mixBlendMode:"screen",flexShrink:0}}/>
           <div>
             <div style={{fontFamily:"Georgia,serif",fontSize:16,fontWeight:700,color:"#fff"}}>S H Global</div>
             <div style={{fontSize:8,color:"rgba(255,255,255,0.8)",marginTop:2,whiteSpace:"pre-line",lineHeight:1.5}}>{COMPANY.address}</div>
