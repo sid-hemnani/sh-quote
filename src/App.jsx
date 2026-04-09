@@ -251,8 +251,10 @@ input:focus,select:focus,textarea:focus{border-color:${N.acc};}
 @media print{
   body *{visibility:hidden !important;}
   #print-zone,#print-zone *{visibility:visible !important;}
-  #print-zone{position:fixed;top:0;left:0;width:100%;background:white;}
-  @page{margin:12mm;size:A4;}
+  #print-zone{position:fixed;top:0;left:0;width:100%;background:white;z-index:9999;}
+  @page{margin:10mm;size:A4;}
+  img{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  div,td,th{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 }
 `;
 
@@ -276,7 +278,7 @@ function PrintZone({quote,client,piRef,dateRef,validRef}){
       {/* Header — dark navy bar */}
       <div style={{background:"#0D2580",padding:"10px 16px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <img src={LOGO} width="70" alt="SH Global" style={{display:"block",mixBlendMode:"screen",flexShrink:0}}/>
+          <div style={{background:"#fff",borderRadius:6,padding:"5px 7px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}><img src={LOGO} height="52" alt="SH Global" style={{display:"block",maxWidth:70}}/></div>
           <div>
             <div style={{fontFamily:"Georgia,serif",fontSize:16,fontWeight:700,color:"#fff"}}>S H Global</div>
             <div style={{fontSize:8,color:"rgba(255,255,255,0.8)",marginTop:2,whiteSpace:"pre-line",lineHeight:1.5}}>{COMPANY.address}</div>
@@ -795,7 +797,13 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote}){
   const extraT=parseFloat(transport)||0, extraL=parseFloat(labour)||0;
   const gst=(subtotal+extraT+extraL)*0.18, grand=subtotal+extraT+extraL+gst;
 
-  const handlePrint=()=>{setShowPrint(true);setTimeout(()=>{window.print();setTimeout(()=>setShowPrint(false),500);},200);};
+  const handlePrint=()=>{
+    setShowPrint(true);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      window.print();
+      setTimeout(()=>setShowPrint(false),1000);
+    }));
+  };
 
   const handleSave=async()=>{
     if(!client.name){setSaveMsg("Add client name first");setTimeout(()=>setSaveMsg(""),2500);return;}
@@ -935,7 +943,7 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote}){
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            <button className="btn-primary" onClick={handlePrint} style={{padding:"12px 24px",fontSize:13}}>⬇ Download / Print PDF</button>
+            <button className="btn-primary" onClick={handlePrint} style={{padding:"12px 24px",fontSize:13}}>⬇ Download Quote PDF</button>
             <button className="btn-brn" onClick={handleSave} disabled={saving} style={{padding:"12px 24px",fontSize:13}}>
               {saving?"Saving...":"☁ Save Quote"}
             </button>
