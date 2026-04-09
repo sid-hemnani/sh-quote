@@ -1,4 +1,6 @@
-import {useState,useMemo,useEffect,useCallback} from "react";
+import {useState,useMemo,useEffect,useCallback,useRef} from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 // Firebase — run: npm install firebase
 import {initializeApp,getApps} from "firebase/app";
 import {getFirestore,collection,addDoc,getDocs,doc,updateDoc,deleteDoc,query,orderBy,serverTimestamp} from "firebase/firestore";
@@ -274,11 +276,11 @@ function PrintZone({quote,client,piRef,dateRef,validRef}){
   const gst=(subtotal+transport+labour)*0.18;
   const grandTotal=subtotal+transport+labour+gst;
   return (
-    <div id="print-zone" style={{fontFamily:"Arial,sans-serif",fontSize:11,color:"#000",background:"#fff",padding:0}}>
+    <div id="print-zone" style={{fontFamily:"Arial,sans-serif",fontSize:11,color:"#000",background:"#fff",padding:0,width:"794px"}}>
       {/* Header — dark navy bar */}
       <div style={{background:"#0D2580",padding:"10px 16px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{background:"#fff",borderRadius:6,padding:"5px 7px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}><img src={LOGO} height="52" alt="SH Global" style={{display:"block",maxWidth:70}}/></div>
+          <div style={{background:"#fff",borderRadius:6,padding:"6px 8px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",width:80,height:66,overflow:"hidden"}}><img src={LOGO} alt="SH Global" style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}}/></div>
           <div>
             <div style={{fontFamily:"Georgia,serif",fontSize:16,fontWeight:700,color:"#fff"}}>S H Global</div>
             <div style={{fontSize:8,color:"rgba(255,255,255,0.8)",marginTop:2,whiteSpace:"pre-line",lineHeight:1.5}}>{COMPANY.address}</div>
@@ -797,12 +799,65 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote}){
   const extraT=parseFloat(transport)||0, extraL=parseFloat(labour)||0;
   const gst=(subtotal+extraT+extraL)*0.18, grand=subtotal+extraT+extraL+gst;
 
-  const handlePrint=()=>{
+  const [downloading,setDownloading]=useState(false);
+
+  const handleDownload=async()=>{
     setShowPrint(true);
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    setDownloading(true);
+    // Wait 2 frames for DOM to render PrintZone
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    try{
+      const el=document.getElementById("print-zone");
+      if(!el){setShowPrint(false);setDownloading(false);return;}
+      const canvas=await html2canvas(el,{
+        scale:2,
+        useCORS:true,
+        backgroundColor:"#ffffff",
+        logging:false,
+        imageTimeout:0
+      });
+      const imgData=canvas.toDataURL("image/jpeg",0.95);
+      const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+      const pdfW=pdf.internal.pageSize.getWidth();
+      const pdfH=pdf.internal.pageSize.getHeight();
+      const imgW=pdfW;
+      const imgH=(canvas.height*pdfW)/canvas.width;
+      let yPos=0;
+      // Multi-page support
+      while(yPos<imgH){
+        if(yPos>0) pdf.addPage();
+        pdf.addImage(imgData,"JPEG",0,-(yPos)*(canvas.width/pdfW)*2/2/canvas.width*pdfW*canvas.height/canvas.width,imgW,imgH);
+        yPos+=pdfH;
+      }
+      // Simpler single-page approach that works for most quotes
+      const ratio=canvas.width/canvas.height;
+      const finalPdf=new jsPDF({orientation:ratio>0.7?"portrait":"portrait",unit:"mm",format:"a4"});
+      const w=finalPdf.internal.pageSize.getWidth();
+      const h=(canvas.height/canvas.width)*w;
+      let y2=0;
+      const pageH=finalPdf.internal.pageSize.getHeight();
+      const sliceH=Math.floor(canvas.width*(pageH/w));
+      let page=0;
+      while(y2<canvas.height){
+        if(page>0) finalPdf.addPage();
+        const c2=document.createElement("canvas");
+        c2.width=canvas.width;
+        c2.height=Math.min(sliceH,canvas.height-y2);
+        const ctx=c2.getContext("2d");
+        ctx.drawImage(canvas,0,y2,canvas.width,c2.height,0,0,canvas.width,c2.height);
+        const slice=c2.toDataURL("image/jpeg",0.95);
+        const sh=(c2.height/canvas.width)*w;
+        finalPdf.addImage(slice,"JPEG",0,0,w,sh);
+        y2+=sliceH;
+        page++;
+      }
+      finalPdf.save(`SHGlobal_Quote_${piNo}.pdf`);
+    }catch(err){
+      console.error("PDF error:",err);
+      // Fallback to print dialog
       window.print();
-      setTimeout(()=>setShowPrint(false),1000);
-    }));
+    }
+    setTimeout(()=>{setShowPrint(false);setDownloading(false);},500);
   };
 
   const handleSave=async()=>{
@@ -943,12 +998,12 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote}){
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            <button className="btn-primary" onClick={handlePrint} style={{padding:"12px 24px",fontSize:13}}>⬇ Download Quote PDF</button>
+            <button className="btn-primary" onClick={handleDownload} disabled={downloading} style={{padding:"12px 24px",fontSize:13}}>{downloading?"⏳ Generating PDF...":"⬇ Download Quote PDF"}</button>
             <button className="btn-brn" onClick={handleSave} disabled={saving} style={{padding:"12px 24px",fontSize:13}}>
               {saving?"Saving...":"☁ Save Quote"}
             </button>
             {saveMsg&&<div style={{fontSize:11,color:saveMsg.includes("✓")?N.ok:N.fire,textAlign:"center"}}>{saveMsg}</div>}
-            <div style={{fontSize:10,color:N.sub,textAlign:"center"}}>Opens print dialog — Save as PDF</div>
+            
           </div>
         </div>
       )}
