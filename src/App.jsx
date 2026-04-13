@@ -771,7 +771,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
 }
 
 // ─── QUOTE BUILDER TAB ───────────────────────────────────────────────────────
-function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote}){
+function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDismissBanner}){
   const [client,setClient]=useState({name:"",company:"",phone:"",address:"",site:""});
   const [piNo,setPiNo]=useState("SHQ-…");
   useEffect(()=>{getNextQuoteNum().then(setPiNo);},[]);
@@ -875,6 +875,15 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote}){
 
   return (
     <div style={{padding:"22px 20px",maxWidth:1100,margin:"0 auto"}} className="mob-pad">
+      {batchBanner&&(
+        <div style={{background:"#EEF2FF",border:`1.5px solid ${N.acc}`,borderRadius:6,padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <div style={{fontSize:12,color:N.acc}}>
+            <strong>📋 {batchBanner} item{batchBanner!==1?"s":""} loaded from BOQ enquiry</strong>
+            <span style={{color:N.sub,marginLeft:8}}>— review pricing and adjust margin before sending</span>
+          </div>
+          <button onClick={onDismissBanner} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:N.sub,padding:"0 4px",lineHeight:1}}>✕</button>
+        </div>
+      )}
       {showPrint&&<PrintZone quote={quoteData} client={client} piRef={piNo} dateRef={date} validRef={validity}/>}
 
       {/* Client */}
@@ -1468,6 +1477,48 @@ export default function App(){
   const [quoteItems,setQuoteItems]=useState([]);
   const [editingIndex,setEditingIndex]=useState(null);
   const [editingConfig,setEditingConfig]=useState(null);
+  const [batchBanner,setBatchBanner]=useState(null); // null | number (count of loaded items)
+
+  // ── Batch URL loading (BOQ deep link) ────────────────────────────────────
+  useEffect(()=>{
+    try{
+      const params=new URLSearchParams(window.location.search);
+      const raw=params.get("batch");
+      if(!raw) return;
+      const json=JSON.parse(decodeURIComponent(atob(raw)));
+      if(!Array.isArray(json)||json.length===0) return;
+      const loaded=[];
+      json.forEach(item=>{
+        const {dt,v,w,h,q,label}=item;
+        if(!dt||!v) return;
+        const result=calculate({
+          doorType:dt,variant:v,unit:"mm",
+          width:String(w||"900"),height:String(h||"2100"),
+          qty:String(q||"1"),margin:"15",
+          isMarine:false,laminate:false,groove:"none",
+          laminateJoint:0,glassGap:false,rebate:false,
+          plasticPatty:false,int5509:false,int3614:false,
+          teakLipping:false,laminateCost:""
+        });
+        if(!result) return;
+        const dd=CATALOG[dt], vd=dd?.variants[v];
+        const desc=(label?label+" — ":"")+( dd?.label||dt)+" "+(vd?.label||v)+" ("+w+"×"+h+"mm)";
+        loaded.push({
+          description:desc,
+          doorPrice:result.preTaxPerDoor,
+          framePrice:"",installation:"",polishing:"",
+          qty:Math.max(1,parseInt(q)||1),
+          totalSet:result.preTaxPerDoor
+        });
+      });
+      if(loaded.length===0) return;
+      setQuoteItems(loaded);
+      setTab("quote");
+      setBatchBanner(loaded.length);
+    }catch(e){
+      console.warn("Batch URL parse failed:",e);
+    }
+  },[]);
 
   const handleAddToQuote=(item,idx)=>{
     if(idx!=null){
@@ -1537,7 +1588,7 @@ export default function App(){
         {tab==="calc"&&calcMode==="door"&&<DoorCalcTab key={editingIndex??'new'} onAddToQuote={handleAddToQuote} editConfig={editingConfig} editIndex={editingIndex}/>}
         {tab==="calc"&&calcMode==="frame"&&<FrameCalcTab onAddToQuote={handleAddToQuote}/>}
         {tab==="calc"&&calcMode==="combo"&&<DoorFrameCalcTab onAddToQuote={handleAddToQuote}/>}
-        {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")}/>}
+        {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")} batchBanner={batchBanner} onDismissBanner={()=>setBatchBanner(null)}/>}
         {tab==="saved"&&<SavedQuotesTab onLoadQuote={handleLoadQuote}/>}
       </div>
 
