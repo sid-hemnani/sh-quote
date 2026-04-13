@@ -270,8 +270,11 @@ function Tog({on,set,label,detail}){
 }
 
 // ─── PRINT ZONE ──────────────────────────────────────────────────────────────
-function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone"}){
-  const subtotal=quote.items.reduce((s,it)=>s+it.totalSet*it.qty,0);
+function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isFinalQuote=false,hwTotal=0,grandPreGst=0}){
+  const doorItems=quote.items||[];
+  const hwLine=quote.hwLine||null;
+  const allItems=hwLine?[...doorItems,hwLine]:doorItems;
+  const subtotal=allItems.reduce((s,it)=>s+(parseFloat(it.totalSet)||0)*(it.qty||1),0);
   const transport=quote.transport||0, labour=quote.labour||0;
   const gst=(subtotal+transport+labour)*0.18;
   const grandTotal=subtotal+transport+labour+gst;
@@ -321,7 +324,7 @@ function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone"}){
           </tr>
         </thead>
         <tbody>
-          {quote.items.map((it,i)=>(
+          {allItems.map((it,i)=>(
             <tr key={i} style={{background:i%2===0?"#f7f9ff":"#fff",borderBottom:"1px solid #dde2f0"}}>
               <td style={{padding:"6px 8px",textAlign:"center"}}>{i+1}</td>
               <td style={{padding:"6px 8px"}}>{it.description}</td>
@@ -1471,6 +1474,258 @@ function DoorFrameCalcTab({onAddToQuote}){
 }
 
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
+// ─── FIXED RATES ─────────────────────────────────────────────────────────────
+const RATES={
+  install:{ doors:1900, frames:800, both:2500 },
+  polish:{ door:600, frame:2000 },
+};
+
+// ─── FINAL QUOTE TAB ─────────────────────────────────────────────────────────
+function FinalQuoteTab({items, boqClient}){
+  // ── Client state (pre-filled from BOQ or blank) ──
+  const [client,setClient]=useState({
+    name:    boqClient?.name    || "",
+    company: boqClient?.company || "",
+    phone:   boqClient?.phone   || "",
+    project: boqClient?.project || "",
+    site:    boqClient?.site    || "",
+  });
+  const scope  = boqClient?.scope    || "both";   // doors | frames | both
+  const hwTotal= parseFloat(boqClient?.hwTotal)||0;
+
+  // ── Per-item scope override (user can change per line) ──
+  const [lineScope, setLineScope]=useState(()=>
+    Object.fromEntries(items.map((_,i)=>[i, scope]))
+  );
+
+  // ── Quote meta ──
+  const [piNo, setPiNo]=useState("SHQ-…");
+  useEffect(()=>{getNextQuoteNum().then(setPiNo);},[]);
+  const [date]=useState(today());
+  const [validity]=useState(()=>{
+    const d=new Date(); d.setDate(d.getDate()+7);
+    return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
+  });
+
+  // ── Compute enriched items with auto rates ──
+  const enriched = useMemo(()=>items.map((it,i)=>{
+    const sc = lineScope[i] || scope;
+    const install = sc==="doors"  ? RATES.install.doors
+                  : sc==="frames" ? RATES.install.frames
+                  : RATES.install.both;
+    const polish  = sc==="frames" ? RATES.polish.frame
+                  : RATES.polish.door;
+    const doorP   = parseFloat(it.doorPrice)  || 0;
+    const frameP  = parseFloat(it.framePrice) || 0;
+    const totalSet= doorP + frameP + install + polish;
+    return {...it, installation:install, polishing:polish, totalSet};
+  }),[items, lineScope, scope]);
+
+  const doorsSub  = enriched.reduce((s,it)=>(parseFloat(it.doorPrice)||0)*it.qty+s, 0);
+  const framesSub = enriched.reduce((s,it)=>(parseFloat(it.framePrice)||0)*it.qty+s, 0);
+  const installSub= enriched.reduce((s,it)=>it.installation*it.qty+s, 0);
+  const polishSub = enriched.reduce((s,it)=>it.polishing*it.qty+s, 0);
+  const itemsSub  = enriched.reduce((s,it)=>it.totalSet*it.qty+s, 0);
+  const grandPre  = itemsSub + hwTotal;
+  const gst       = grandPre * 0.18;
+  const grand     = grandPre + gst;
+
+  // ── PDF download ──
+  const [showPrint,setShowPrint]=useState(false);
+  const [downloading,setDownloading]=useState(false);
+
+  const handleDownload=async()=>{
+    setShowPrint(true); setDownloading(true);
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    try{
+      const el=document.getElementById("fq-print-zone");
+      if(!el){setShowPrint(false);setDownloading(false);return;}
+      const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:"#ffffff",logging:false});
+      const finalPdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+      const w=finalPdf.internal.pageSize.getWidth();
+      const pageH=finalPdf.internal.pageSize.getHeight();
+      const sliceH=Math.floor(canvas.width*(pageH/w));
+      let y2=0, page=0;
+      while(y2<canvas.height){
+        if(page>0) finalPdf.addPage();
+        const c2=document.createElement("canvas");
+        c2.width=canvas.width; c2.height=Math.min(sliceH,canvas.height-y2);
+        c2.getContext("2d").drawImage(canvas,0,y2,canvas.width,c2.height,0,0,canvas.width,c2.height);
+        finalPdf.addImage(c2.toDataURL("image/jpeg",0.95),"JPEG",0,0,w,(c2.height/canvas.width)*w);
+        y2+=sliceH; page++;
+      }
+      finalPdf.save(`SHGlobal_ProjectQuote_${piNo}.pdf`);
+    }catch(err){window.print();}
+    setTimeout(()=>{setShowPrint(false);setDownloading(false);},500);
+  };
+
+  const scopeLabel=(sc)=>sc==="doors"?"Doors only":sc==="frames"?"Frames only":"Doors + Frames";
+
+  // ── Render ──
+  return(
+    <div style={{padding:"22px 20px",maxWidth:1100,margin:"0 auto"}} className="mob-pad">
+
+      {/* Banner if loaded from BOQ */}
+      {boqClient?.name&&(
+        <div style={{background:"#EEF2FF",border:`1.5px solid ${N.acc}`,borderRadius:6,padding:"10px 16px",marginBottom:16,fontSize:12,color:N.acc}}>
+          Project loaded from BOQ — {boqClient.name} · {boqClient.project}{hwTotal>0?` · Hardware ₹${fmt(hwTotal)}`:""}
+        </div>
+      )}
+
+      {/* ── Client details ── */}
+      <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:6,padding:"16px 18px",marginBottom:18}}>
+        <div style={{fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:N.sub,marginBottom:12}}>Client & Project Details</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="door-grid">
+          {[["name","Contact Name"],["company","Company / Developer"],["phone","Phone"],["project","Project Name"],["site","Site / Location"]].map(([k,lbl])=>(
+            <div key={k} style={k==="site"?{gridColumn:"1/-1"}:{}}>
+              <div className="lbl">{lbl}</div>
+              <input value={client[k]} onChange={e=>setClient(p=>({...p,[k]:e.target.value}))} placeholder={lbl}/>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Line items ── */}
+      <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:6,padding:"16px 18px",marginBottom:18}}>
+        <div style={{fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:N.sub,marginBottom:12}}>
+          Door Pricing — Installation &amp; Polishing auto-applied
+        </div>
+
+        {/* Desktop table */}
+        <div className="table-outer hide-mob">
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr style={{background:N.lite}}>
+                {["#","Description","Scope","Door Price","Frame Price","Install","Polish","Total/Set","Qty","Line Total"].map(h=>(
+                  <th key={h} style={{padding:"7px 8px",textAlign:h==="Description"||h==="#"?"left":"right",fontSize:10,letterSpacing:".06em",color:N.sub,borderBottom:`1px solid ${N.bdr}`,whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {enriched.map((it,i)=>(
+                <tr key={i} style={{borderBottom:`1px solid ${N.bdr}`,background:i%2===0?N.bg:N.srf}}>
+                  <td style={{padding:"7px 8px",color:N.sub,fontSize:11}}>{i+1}</td>
+                  <td style={{padding:"7px 8px",fontSize:11,color:N.ink,maxWidth:200}}>{it.description}</td>
+                  <td style={{padding:"7px 8px"}}>
+                    <select value={lineScope[i]||scope} onChange={e=>setLineScope(p=>({...p,[i]:e.target.value}))}
+                      style={{fontSize:10,padding:"3px 5px",width:110}}>
+                      <option value="both">D+F</option>
+                      <option value="doors">Doors</option>
+                      <option value="frames">Frames</option>
+                    </select>
+                  </td>
+                  <td style={{padding:"7px 8px",textAlign:"right",fontSize:11}}>{it.doorPrice?`₹${fmt(it.doorPrice)}`:"—"}</td>
+                  <td style={{padding:"7px 8px",textAlign:"right",fontSize:11}}>{it.framePrice?`₹${fmt(it.framePrice)}`:"—"}</td>
+                  <td style={{padding:"7px 8px",textAlign:"right",fontSize:11,color:N.ok}}>₹{fmt(it.installation)}</td>
+                  <td style={{padding:"7px 8px",textAlign:"right",fontSize:11,color:N.ok}}>₹{fmt(it.polishing)}</td>
+                  <td style={{padding:"7px 8px",textAlign:"right",fontWeight:600,fontSize:11}}>₹{fmt(it.totalSet)}</td>
+                  <td style={{padding:"7px 8px",textAlign:"right",fontSize:11}}>{it.qty}</td>
+                  <td style={{padding:"7px 8px",textAlign:"right",fontWeight:600,fontSize:12,color:N.acc}}>₹{fmt(it.totalSet*it.qty)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile cards */}
+        <div className="qb-cards">
+          {enriched.map((it,i)=>(
+            <div key={i} className="qb-card">
+              <div className="qb-card-desc">{i+1}. {it.description}</div>
+              <div className="qb-card-row">
+                <span className="qb-card-label">Scope</span>
+                <select value={lineScope[i]||scope} onChange={e=>setLineScope(p=>({...p,[i]:e.target.value}))}
+                  style={{fontSize:12,padding:"4px 6px",width:120}}>
+                  <option value="both">Doors + Frames</option>
+                  <option value="doors">Doors only</option>
+                  <option value="frames">Frames only</option>
+                </select>
+              </div>
+              {it.doorPrice?<div className="qb-card-row"><span className="qb-card-label">Door Price/set</span><span>₹{fmt(it.doorPrice)}</span></div>:null}
+              {it.framePrice?<div className="qb-card-row"><span className="qb-card-label">Frame Price/set</span><span>₹{fmt(it.framePrice)}</span></div>:null}
+              <div className="qb-card-row"><span className="qb-card-label">Installation</span><span style={{color:N.ok}}>₹{fmt(it.installation)}</span></div>
+              <div className="qb-card-row"><span className="qb-card-label">Polishing</span><span style={{color:N.ok}}>₹{fmt(it.polishing)}</span></div>
+              <div className="qb-card-row"><span className="qb-card-label">Qty</span><span>{it.qty}</span></div>
+              <div className="qb-card-row" style={{marginTop:6,paddingTop:6,borderTop:`1px solid ${N.bdr}`}}>
+                <span className="qb-card-label" style={{fontWeight:600}}>Line Total</span>
+                <span className="qb-card-total">₹{fmt(it.totalSet*it.qty)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Totals breakdown ── */}
+      <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:6,padding:"16px 18px",marginBottom:18}}>
+        <div style={{fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:N.sub,marginBottom:12}}>Project Cost Summary</div>
+        <div style={{maxWidth:420,marginLeft:"auto"}}>
+          {[
+            ["Door leaves",       doorsSub],
+            ["Door frames",       framesSub],
+            ["Installation",      installSub],
+            ["Polishing",         polishSub],
+            hwTotal>0?["Hardware & Finishes", hwTotal]:null,
+          ].filter(Boolean).map(([label,val])=>(
+            <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px dashed ${N.bdr}`,fontSize:12,color:N.sub}}>
+              <span>{label}</span><span style={{color:N.ink,fontWeight:500}}>₹{fmt(val)}</span>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px dashed ${N.bdr}`,fontSize:12}}>
+            <span style={{color:N.sub}}>Subtotal (excl. GST)</span>
+            <span style={{fontWeight:600,color:N.ink}}>₹{fmt(grandPre)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px dashed ${N.bdr}`,fontSize:12,color:N.sub}}>
+            <span>GST @ 18%</span><span>₹{fmt(gst)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",fontSize:15,fontWeight:700,color:N.acc}}>
+            <span>Grand Total</span><span>₹{fmt(grand)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Actions ── */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        <button className="btn-primary mob-full" onClick={handleDownload} disabled={downloading} style={{fontSize:13,padding:"12px 28px"}}>
+          {downloading?"Generating PDF…":"Download Project Quote PDF"}
+        </button>
+        <div style={{fontSize:11,color:N.sub,alignSelf:"center"}}>
+          Same format as your existing proforma
+        </div>
+      </div>
+
+      {/* ── Hidden print zone ── */}
+      {showPrint&&(
+        <div style={{position:"absolute",left:-9999,top:0}}>
+          <PrintZone
+            printId="fq-print-zone"
+            quote={{
+              items: enriched.map(it=>({
+                ...it,
+                // Merge hardware as a separate line item at the end
+              })),
+              transport:0, labour:0,
+              hwLine: hwTotal>0?{description:"Hardware & Finishes (hinges, locks, closers, handles, smoke seal, screws)",totalSet:hwTotal,qty:1,doorPrice:"",framePrice:"",installation:"",polishing:""}:null,
+            }}
+            client={{
+              name:    client.name,
+              company: client.company,
+              phone:   client.phone,
+              address: client.project,
+              site:    client.site,
+            }}
+            piRef={piNo}
+            dateRef={date}
+            validRef={validity}
+            isFinalQuote={true}
+            hwTotal={hwTotal}
+            grandPreGst={grandPre}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App(){
   const [tab,setTab]=useState("calc");
   const [calcMode,setCalcMode]=useState("door"); // "door" | "frame" | "combo" | "combo"
@@ -1478,6 +1733,7 @@ export default function App(){
   const [editingIndex,setEditingIndex]=useState(null);
   const [editingConfig,setEditingConfig]=useState(null);
   const [batchBanner,setBatchBanner]=useState(null); // null | number (count of loaded items)
+  const [boqClient,setBoqClient]=useState(null);     // client metadata from BOQ URL
 
   // ── Batch URL loading (BOQ deep link) ────────────────────────────────────
   useEffect(()=>{
@@ -1486,9 +1742,12 @@ export default function App(){
       const raw=params.get("batch");
       if(!raw) return;
       const json=JSON.parse(decodeURIComponent(atob(raw)));
-      if(!Array.isArray(json)||json.length===0) return;
+      // Support both old flat array format and new {items, client} format
+      const batchItems = Array.isArray(json) ? json : (json.items || []);
+      const clientMeta = Array.isArray(json) ? null : (json.client || null);
+      if(batchItems.length===0) return;
       const loaded=[];
-      json.forEach(item=>{
+      batchItems.forEach(item=>{
         const {dt,v,w,h,q,label}=item;
         if(!dt||!v) return;
         const result=calculate({
@@ -1508,11 +1767,13 @@ export default function App(){
           doorPrice:result.preTaxPerDoor,
           framePrice:"",installation:"",polishing:"",
           qty:Math.max(1,parseInt(q)||1),
-          totalSet:result.preTaxPerDoor
+          totalSet:result.preTaxPerDoor,
+          _scope: item.scope||"both",
         });
       });
       if(loaded.length===0) return;
       setQuoteItems(loaded);
+      if(clientMeta) setBoqClient(clientMeta);
       setTab("quote");
       setBatchBanner(loaded.length);
     }catch(e){
@@ -1566,6 +1827,9 @@ export default function App(){
           Quote Builder{quoteItems.length>0&&<span style={{marginLeft:6,background:N.acc,color:"#fff",fontSize:9,padding:"1px 5px",borderRadius:9,verticalAlign:"middle"}}>{quoteItems.length}</span>}
         </button>
         <button className={"tab-btn"+(tab==="saved"?" active":"")} onClick={()=>setTab("saved")}>Saved Quotes</button>
+        <button className={"tab-btn"+(tab==="final"?" active":"")} onClick={()=>setTab("final")} style={{borderBottomColor:tab==="final"?"#1A7A4A":undefined,color:tab==="final"?"#1A7A4A":undefined}}>
+          Project Quote{boqClient&&<span style={{marginLeft:6,background:"#1A7A4A",color:"#fff",fontSize:9,padding:"1px 5px",borderRadius:9,verticalAlign:"middle"}}>BOQ</span>}
+        </button>
       </div>
 
       {/* Desktop Calculator sub-tabs */}
@@ -1590,6 +1854,7 @@ export default function App(){
         {tab==="calc"&&calcMode==="combo"&&<DoorFrameCalcTab onAddToQuote={handleAddToQuote}/>}
         {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")} batchBanner={batchBanner} onDismissBanner={()=>setBatchBanner(null)}/>}
         {tab==="saved"&&<SavedQuotesTab onLoadQuote={handleLoadQuote}/>}
+        {tab==="final"&&<FinalQuoteTab items={quoteItems} boqClient={boqClient}/>}
       </div>
 
       {/* Mobile bottom nav */}
@@ -1609,6 +1874,10 @@ export default function App(){
         </button>
         <button className={"mob-nav-btn"+(tab==="saved"?" active":"")} onClick={()=>setTab("saved")}>
           <span className="mob-nav-icon">☁</span>Saved
+        </button>
+        <button className={"mob-nav-btn"+(tab==="final"?" active":"")} onClick={()=>setTab("final")} style={tab==="final"?{color:"#fff",borderTop:"2px solid #1A7A4A"}:{}}>
+          <span className="mob-nav-icon">📄</span>Final
+          {boqClient&&<span style={{position:"absolute",top:6,right:"calc(50% - 18px)",background:"#1A7A4A",color:"#fff",fontSize:9,padding:"1px 5px",borderRadius:9,minWidth:16,textAlign:"center"}}>✓</span>}
         </button>
       </nav>
     </div>
