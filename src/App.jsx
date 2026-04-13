@@ -270,14 +270,35 @@ function Tog({on,set,label,detail}){
 }
 
 // ─── PRINT ZONE ──────────────────────────────────────────────────────────────
-function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isFinalQuote=false,hwTotal=0,grandPreGst=0}){
+function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isFinalQuote=false,hwTotal=0,hwLines=[],grandPreGst=0}){
   const doorItems=quote.items||[];
-  const hwLine=quote.hwLine||null;
-  const allItems=hwLine?[...doorItems,hwLine]:doorItems;
-  const subtotal=allItems.reduce((s,it)=>s+(parseFloat(it.totalSet)||0)*(it.qty||1),0);
+  const resolvedHwLines = hwLines.length>0 ? hwLines : (quote.hwLine?[{...quote.hwLine,isSubtotal:true}]:[]);
+  const allItems=[...doorItems];
+  const hwSubtotal=hwLines.reduce((s,r)=>s+(r.total||0),0)||hwTotal;
+  const subtotal=allItems.reduce((s,it)=>s+(parseFloat(it.totalSet)||0)*(it.qty||1),0)+(isFinalQuote?hwSubtotal:0);
   const transport=quote.transport||0, labour=quote.labour||0;
   const gst=(subtotal+transport+labour)*0.18;
   const grandTotal=subtotal+transport+labour+gst;
+
+  // Context-aware T&C: replace hardware line based on whether hw is included
+  const TNC_FINAL=[
+    "Government taxes as applicable over and above the quoted rates.",
+    "Transport included and unloading included for ground floor only.",
+    "50% Advance and balance after installation.",
+    "Door Frames: Delivery in 7 working days after receipt of confirmed PO and mobilisation advance.",
+    "Frame finish size will be 5–6mm less on both sides.",
+    "Door frames: includes black japan and horns.",
+    "Doors: Delivery in 15 days once laminate is supplied to the factory.",
+    "Laminate not included in the price mentioned above.",
+    "A Form charges additional for FRD doors.",
+    "Polishing charges include frame and door dhar.",
+    hwLines.length>0
+      ? "Hardware & finishes prices are indicative based on quantities and brands provided by the client. Final prices subject to brand confirmation and site measurement."
+      : "Prices do not include any hardware.",
+    "Cost of glass not included and to be provided by the customer.",
+    "Inspection if required to be carried out at the factory before delivery.",
+  ];
+  const tncToUse = isFinalQuote ? TNC_FINAL : TNC;
   return (
     <div id={printId} style={{fontFamily:"Arial,sans-serif",fontSize:11,color:"#000",background:"#fff",padding:0,width:"794px"}}>
       {/* Header — dark navy bar */}
@@ -337,6 +358,28 @@ function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isF
               <td style={{padding:"6px 8px",textAlign:"right",fontWeight:600}}>{fmt(it.totalSet*it.qty)}</td>
             </tr>
           ))}
+          {isFinalQuote&&resolvedHwLines.map((hw,i)=>(
+            <tr key={"hw"+i} style={{background:"#FFF8EE",borderBottom:"1px solid #f0d8b0"}}>
+              <td style={{padding:"6px 8px",textAlign:"center",color:"#7B3A10"}}>{allItems.length+i+1}</td>
+              <td style={{padding:"6px 8px",color:"#7B3A10",fontStyle:"italic"}}>
+                {hw.isSubtotal?"Hardware & Finishes (hinges, locks, closers, handles, smoke seal, screws)":hw.label}
+                {hw.spec?<span style={{fontSize:8,color:"#9a6030",display:"block"}}>{hw.spec}</span>:null}
+              </td>
+              <td style={{padding:"6px 8px",textAlign:"right"}}>—</td>
+              <td style={{padding:"6px 8px",textAlign:"right"}}>—</td>
+              <td style={{padding:"6px 8px",textAlign:"right"}}>—</td>
+              <td style={{padding:"6px 8px",textAlign:"right"}}>—</td>
+              <td style={{padding:"6px 8px",textAlign:"right",fontWeight:600,color:"#7B3A10"}}>
+                {hw.isSubtotal?fmt(hwSubtotal):(hw.price?fmt(hw.price):"—")}
+              </td>
+              <td style={{padding:"6px 8px",textAlign:"center",color:"#7B3A10"}}>
+                {hw.isSubtotal?"—":hw.qty}
+              </td>
+              <td style={{padding:"6px 8px",textAlign:"right",fontWeight:600,color:"#7B3A10"}}>
+                {hw.isSubtotal?fmt(hwSubtotal):fmt(hw.total||0)}
+              </td>
+            </tr>
+          ))}
         </tbody>
         <tfoot>
           <tr style={{borderTop:"2px solid #0D2580"}}>
@@ -363,7 +406,7 @@ function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isF
         </td>
         <td style={{verticalAlign:"top"}}>
           <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",color:"#0D2580",marginBottom:4}}>Terms & Conditions</div>
-          {TNC.map((t,i)=>(
+          {tncToUse.map((t,i)=>(
             <div key={i} style={{fontSize:8.5,marginBottom:2,color:"#333"}}>{i+1}. {t}</div>
           ))}
         </td>
@@ -1490,8 +1533,9 @@ function FinalQuoteTab({items, boqClient}){
     project: boqClient?.project || "",
     site:    boqClient?.site    || "",
   });
-  const scope  = boqClient?.scope    || "both";   // doors | frames | both
-  const hwTotal= parseFloat(boqClient?.hwTotal)||0;
+  const scope  = boqClient?.scope    || "both";
+  const hwLines= boqClient?.hwLines  || [];
+  const hwTotal= hwLines.reduce((s,r)=>s+(r.total||0), 0) || parseFloat(boqClient?.hwTotal)||0;
 
   // ── Per-item scope override (user can change per line) ──
   const [lineScope, setLineScope]=useState(()=>
@@ -1664,12 +1708,24 @@ function FinalQuoteTab({items, boqClient}){
             ["Door frames",       framesSub],
             ["Installation",      installSub],
             ["Polishing",         polishSub],
-            hwTotal>0?["Hardware & Finishes", hwTotal]:null,
-          ].filter(Boolean).map(([label,val])=>(
+          ].map(([label,val])=>(
             <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px dashed ${N.bdr}`,fontSize:12,color:N.sub}}>
               <span>{label}</span><span style={{color:N.ink,fontWeight:500}}>₹{fmt(val)}</span>
             </div>
           ))}
+          {hwLines.length>0?(
+            hwLines.map((hw,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px dashed ${N.bdr}`,fontSize:11,color:N.sub}}>
+                <span style={{flex:1}}>{hw.label}{hw.spec?<span style={{color:N.sub,fontSize:10}}> · {hw.spec}</span>:null}</span>
+                <span style={{color:N.ink,marginLeft:8}}>{hw.qty} {hw.unit}{hw.price?` @ ₹${fmt(hw.price)}`:""}</span>
+                <span style={{color:N.ink,fontWeight:500,marginLeft:12,minWidth:80,textAlign:"right"}}>₹{fmt(hw.total)}</span>
+              </div>
+            ))
+          ):hwTotal>0?(
+            <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px dashed ${N.bdr}`,fontSize:12,color:N.sub}}>
+              <span>Hardware &amp; Finishes</span><span style={{color:N.ink,fontWeight:500}}>₹{fmt(hwTotal)}</span>
+            </div>
+          ):null}
           <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px dashed ${N.bdr}`,fontSize:12}}>
             <span style={{color:N.sub}}>Subtotal (excl. GST)</span>
             <span style={{fontWeight:600,color:N.ink}}>₹{fmt(grandPre)}</span>
@@ -1699,11 +1755,9 @@ function FinalQuoteTab({items, boqClient}){
           <PrintZone
             printId="fq-print-zone"
             quote={{
-              items: enriched.map(it=>({
-                ...it,
-                // Merge hardware as a separate line item at the end
-              })),
+              items: enriched,
               transport:0, labour:0,
+              hwLines,
               hwLine: hwTotal>0?{description:"Hardware & Finishes (hinges, locks, closers, handles, smoke seal, screws)",totalSet:hwTotal,qty:1,doorPrice:"",framePrice:"",installation:"",polishing:""}:null,
             }}
             client={{
@@ -1718,6 +1772,7 @@ function FinalQuoteTab({items, boqClient}){
             validRef={validity}
             isFinalQuote={true}
             hwTotal={hwTotal}
+            hwLines={hwLines}
             grandPreGst={grandPre}
           />
         </div>
@@ -1748,7 +1803,7 @@ export default function App(){
       if(batchItems.length===0) return;
       const loaded=[];
       batchItems.forEach(item=>{
-        const {dt,v,w,h,q,label,scope,fw,fh,ow,oh,fmat}=item;
+        const {dt,v,w,h,q,label,scope,fw,fh,ow,oh,fmat,int3614,int5509}=item;
         if(!dt||!v) return;
         const result=calculate({
           doorType:dt,variant:v,unit:"mm",
@@ -1756,7 +1811,9 @@ export default function App(){
           qty:String(q||"1"),margin:"15",
           isMarine:false,laminate:false,groove:"none",
           laminateJoint:0,glassGap:false,rebate:false,
-          plasticPatty:false,int5509:false,int3614:false,
+          plasticPatty:false,
+          int5509: int5509===true,
+          int3614: int3614===true,
           teakLipping:false,laminateCost:""
         });
         if(!result) return;
@@ -1794,7 +1851,12 @@ export default function App(){
       });
       if(loaded.length===0) return;
       setQuoteItems(loaded);
-      if(clientMeta) setBoqClient(clientMeta);
+      if(clientMeta){
+        setBoqClient({
+          ...clientMeta,
+          hwLines: clientMeta.hwLines || [],
+        });
+      }
       setTab("quote");
       setBatchBanner(loaded.length);
     }catch(e){
