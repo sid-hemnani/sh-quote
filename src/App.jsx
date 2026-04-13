@@ -1748,7 +1748,7 @@ export default function App(){
       if(batchItems.length===0) return;
       const loaded=[];
       batchItems.forEach(item=>{
-        const {dt,v,w,h,q,label}=item;
+        const {dt,v,w,h,q,label,scope,fw,fh,ow,oh,fmat}=item;
         if(!dt||!v) return;
         const result=calculate({
           doorType:dt,variant:v,unit:"mm",
@@ -1760,15 +1760,36 @@ export default function App(){
           teakLipping:false,laminateCost:""
         });
         if(!result) return;
+        // Auto-calculate frame price if frame spec is provided from BOQ
+        let framePrice="";
+        if(fw&&fh&&ow&&oh){
+          const species=(fmat==="Teak"||fmat==="teak_african")?"teak_african":"red_meranti";
+          const frameResult=calculateFrame({
+            species,
+            teakSection:"4x2",
+            sectionW:String(fw),
+            sectionH:String(fh),
+            sectionUnit:"mm",
+            openW:String(ow),
+            openH:String(oh),
+            openUnit:"mm",
+            horns:false,
+            transport:"100",
+            margin:"15",
+            qty:"1",
+          });
+          if(frameResult) framePrice=frameResult.perFrame;
+        }
         const dd=CATALOG[dt], vd=dd?.variants[v];
         const desc=(label?label+" — ":"")+( dd?.label||dt)+" "+(vd?.label||v)+" ("+w+"×"+h+"mm)";
+        const totalSet=(result.preTaxPerDoor)+(parseFloat(framePrice)||0);
         loaded.push({
           description:desc,
           doorPrice:result.preTaxPerDoor,
-          framePrice:"",installation:"",polishing:"",
+          framePrice,installation:"",polishing:"",
           qty:Math.max(1,parseInt(q)||1),
-          totalSet:result.preTaxPerDoor,
-          _scope: item.scope||"both",
+          totalSet,
+          _scope: scope||"both",
         });
       });
       if(loaded.length===0) return;
