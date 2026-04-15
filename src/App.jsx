@@ -127,20 +127,20 @@ function calculate(s){
 
 // ─── FRAME CALCULATION ───────────────────────────────────────────────────────
 function calculateFrame(s){
-  let swIn,shIn;
+  let shIn;  // depth into wall — the variable dimension
   if(s.species==="teak_african"){
     const sec=TEAK_SECTIONS[s.teakSection]; if(!sec) return null;
-    swIn=sec.w; shIn=sec.h;
+    shIn=sec.h;  // teak sections define depth
   } else {
-    swIn=toInchCeil(s.sectionW,s.sectionUnit);
     shIn=toInchCeil(s.sectionH,s.sectionUnit);
   }
-  if(!swIn||!shIn) return null;
+  if(!shIn) return null;
+  const FACE_IN=4;  // standard face width — fixed, not a variable input
   const wFt=toFeetQ(s.openW,s.openUnit), hFt=toFeetQ(s.openH,s.openUnit);
   if(!wFt||!hFt) return null;
   const hornExtra=s.horns?0.5:0;
   const runningFt=2*hFt+wFt+hornExtra;
-  const cubicRaw=(swIn*shIn*runningFt)/144;
+  const cubicRaw=(FACE_IN*shIn*runningFt)/144;
   const wastage=cubicRaw*0.10;
   const cubicFt=cubicRaw+wastage;
   let rate=null;
@@ -153,7 +153,7 @@ function calculateFrame(s){
   }
   const transport=parseFloat(s.transport)||100;
   const mPct=parseFloat(s.margin)||0;
-  const isTkHigh=s.species==="teak_african"&&hFt>7.75; // >7ft 9in
+  const isTkHigh=s.species==="teak_african"&&hFt>7.75;
   const woodCost=cubicFt*rate+(isTkHigh?50:0);
   const labour=s.species==="teak_african"?350:250;
   const subtotal=woodCost+labour+transport;
@@ -162,6 +162,7 @@ function calculateFrame(s){
   const gst=preTax*0.18;
   const total=preTax+gst;
   const qty=Math.max(1,parseInt(s.qty)||1);
+  const swIn=FACE_IN;  // kept for display/reference only
   return {swIn,shIn,wFt,hFt,runningFt,hornExtra,cubicRaw,wastage,cubicFt,rate,woodCost,transport,labour,isTkHigh,subtotal,marginAmt,preTax,gst,total,perFrame:preTax,totalPerFrame:total,qty};
 }
 
@@ -1520,7 +1521,7 @@ function DoorFrameCalcTab({onAddToQuote}){
 // ─── FIXED RATES ─────────────────────────────────────────────────────────────
 const RATES={
   install:{ doors:1900, frames:800, both:2500 },
-  polish:{ door:600, frame:2000 },
+  polish:{ door:600, frame:2000, both:2500 },
 };
 
 // ─── FINAL QUOTE TAB ─────────────────────────────────────────────────────────
@@ -1558,6 +1559,7 @@ function FinalQuoteTab({items, boqClient}){
                   : sc==="frames" ? RATES.install.frames
                   : RATES.install.both;
     const polish  = sc==="frames" ? RATES.polish.frame
+                  : sc==="both"   ? RATES.polish.both
                   : RATES.polish.door;
     const doorP   = parseFloat(it.doorPrice)  || 0;
     const frameP  = parseFloat(it.framePrice) || 0;
@@ -1824,7 +1826,7 @@ export default function App(){
           const frameResult=calculateFrame({
             species,
             teakSection:"4x2",
-            sectionW:String(fw),
+            sectionW:"100", // face — fixed 4 inches, not used in calc
             sectionH:String(fh),
             sectionUnit:"mm",
             openW:String(ow),
