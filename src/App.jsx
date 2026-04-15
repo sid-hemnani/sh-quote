@@ -107,7 +107,7 @@ function calculate(s){
   if(s.groove==="both"){rate+=15;bd.push({label:"Groove — both sides",value:15});}
   if(s.laminateJoint>0){const ljv=s.laminateJoint*2;rate+=ljv;bd.push({label:`Laminate joint (×${s.laminateJoint})`,value:ljv});}
   if(s.glassGap){const v=isFire?25:20;rate+=v;bd.push({label:"Glass gap",value:v});}
-  if(s.rebate){rate+=10;bd.push({label:"Rebate (Badam)",value:10});}
+  if(s.rebate){rate+=10;bd.push({label:"Rebate",value:10});}
   if(isMR&&s.plasticPatty){rate+=3;bd.push({label:"Plastic patty",value:3});}
   if(s.teakLipping){const lr=lippingRate(s.variant);if(lr){rate+=lr;bd.push({label:`Teak Lipping Patti`,value:lr});}}
   const isSmall=wFt<2||hFt<5, isBig=wFt>4||hFt>8; // <2ft wide OR <5ft tall
@@ -147,7 +147,7 @@ function calculateFrame(s){
   const cubicFt=cubicRaw+wastage;
   let rate=null;
   if(s.species==="red_meranti"){
-    rate=1200;
+    rate=1250;
   } else {
     const sec=TEAK_SECTIONS[s.teakSection]; if(!sec) return null;
     for(const b of sec.rates){ if(hFt<=b.maxH){rate=b.rate;break;} }
@@ -481,7 +481,7 @@ function FrameCalcTab({onAddToQuote}){
         <div style={{marginBottom:20}}>
           <div className="lbl">Wood Species</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}} className="door-grid">
-            {[["red_meranti","Red Meranti","₹1,200/cft · any size"],["teak_african","Teak Wood African","Rate by section & height"]].map(([k,lbl,sub])=>(
+            {[["red_meranti","Red Meranti","₹1,250/cft · any size"],["teak_african","Teak Wood African","Rate by section & height"]].map(([k,lbl,sub])=>(
               <div key={k} className={"card"+(species===k?" sel":"")} onClick={()=>setSpecies(k)}>
                 <div style={{fontSize:13,fontWeight:600,color:species===k?N.acc:N.ink,marginBottom:2}}>{lbl}</div>
                 <div style={{fontSize:10,color:N.sub}}>{sub}</div>
@@ -739,7 +739,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
         <div style={{marginBottom:22,background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
           <div className="lbl">Laminate Cost (₹ per door)</div>
           <input type="number" min="0" placeholder="e.g. 1800 — added directly to door price" value={laminateCost} onChange={e=>setLaminateCost(e.target.value)}/>
-          {parseFloat(laminateCost)>0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>₹{fmt(parseFloat(laminateCost))} added per door — not subject to margin or GST recalculation, included in Price/Door</div>}
+          {parseFloat(laminateCost)>0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>₹{fmt(parseFloat(laminateCost))} per door — not subject to margin · GST @ 18% applies</div>}
         </div>
 
         <div style={{marginBottom:22}}>
@@ -762,7 +762,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
                 </div>
               </div>
             <Tog on={glassGap} set={setGlassGap} label="Glass Gap" detail={`+₹${isFire?25:20}/sq.ft`}/>
-            <Tog on={rebate} set={setRebate} label="Rebate (Badam)" detail="+₹10/sq.ft"/>
+            <Tog on={rebate} set={setRebate} label="Rebate" detail="+₹10/sq.ft"/>
             {isMR&&<Tog on={plasticPatty} set={setPlasticPatty} label="Plastic Patty" detail="+₹3/sq.ft"/>}
             <Tog on={teakLipping} set={setTeakLipping} label="Teak Lipping Patti" detail={lippingRate(variant)?`+₹${lippingRate(variant)}/sq.ft`:"—"} />
           </div>
@@ -1375,7 +1375,7 @@ function DoorFrameCalcTab({onAddToQuote}){
                 </div>
               </div>
               <Tog on={glassGap} set={setGlassGap} label="Glass Gap" detail={`+₹${isFire?25:20}/sq.ft`}/>
-              <Tog on={rebate} set={setRebate} label="Rebate (Badam)" detail="+₹10/sq.ft"/>
+              <Tog on={rebate} set={setRebate} label="Rebate" detail="+₹10/sq.ft"/>
               {isMR&&<Tog on={plasticPatty} set={setPlasticPatty} label="Plastic Patty" detail="+₹3/sq.ft"/>}
               <Tog on={teakLipping} set={setTeakLipping} label="Teak Lipping Patti" detail={lippingRate(variant)?`+₹${lippingRate(variant)}/sq.ft`:"—"}/>
             </div>
@@ -1389,7 +1389,7 @@ function DoorFrameCalcTab({onAddToQuote}){
           <div style={{marginBottom:14}}>
             <div className="lbl">Wood Species</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}} className="door-grid">
-              {[["red_meranti","Red Meranti","₹1,200/cft"],["teak_african","Teak African","Rate by section"]].map(([k,lbl,sub])=>(
+              {[["red_meranti","Red Meranti","₹1,250/cft"],["teak_african","Teak African","Rate by section"]].map(([k,lbl,sub])=>(
                 <div key={k} className={"card"+(species===k?" sel":"")} onClick={()=>setSpecies(k)}>
                   <div style={{fontSize:12,fontWeight:600,color:species===k?N.acc:N.ink,marginBottom:2}}>{lbl}</div>
                   <div style={{fontSize:10,color:N.sub}}>{sub}</div>
@@ -1454,7 +1454,7 @@ function DoorFrameCalcTab({onAddToQuote}){
         <div style={{background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px",marginBottom:14}}>
           <div className="lbl" style={{marginBottom:8}}>Laminate Cost (₹ per door)</div>
           <input type="number" min="0" placeholder="e.g. 1800 — added to door price" value={laminateCost} onChange={e=>setLaminateCost(e.target.value)}/>
-          {parseFloat(laminateCost)>0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>₹{fmt(parseFloat(laminateCost))} added per door · not subject to margin/GST</div>}
+          {parseFloat(laminateCost)>0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>₹{fmt(parseFloat(laminateCost))} per door — not subject to margin · GST @ 18% applies</div>}
         </div>
 
         <div style={{background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
