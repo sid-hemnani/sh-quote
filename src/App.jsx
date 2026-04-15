@@ -127,15 +127,17 @@ function calculate(s){
 
 // ─── FRAME CALCULATION ───────────────────────────────────────────────────────
 function calculateFrame(s){
-  let shIn;  // depth into wall — the variable dimension
+  let swIn, shIn;
   if(s.species==="teak_african"){
     const sec=TEAK_SECTIONS[s.teakSection]; if(!sec) return null;
-    shIn=sec.h;  // teak sections define depth
+    swIn=sec.w;  // face width from section
+    shIn=sec.h;  // depth into wall
   } else {
+    swIn=toInchCeil(s.sectionW,s.sectionUnit);
     shIn=toInchCeil(s.sectionH,s.sectionUnit);
   }
-  if(!shIn) return null;
-  const FACE_IN=4;  // standard face width — fixed, not a variable input
+  if(!swIn||!shIn) return null;
+  const FACE_IN=swIn;  // actual face width of selected section
   const wFt=toFeetQ(s.openW,s.openUnit), hFt=toFeetQ(s.openH,s.openUnit);
   if(!wFt||!hFt) return null;
   const hornExtra=s.horns?0.5:0;
@@ -162,7 +164,7 @@ function calculateFrame(s){
   const gst=preTax*0.18;
   const total=preTax+gst;
   const qty=Math.max(1,parseInt(s.qty)||1);
-  const swIn=FACE_IN;  // kept for display/reference only
+  // swIn already set above
   return {swIn,shIn,wFt,hFt,runningFt,hornExtra,cubicRaw,wastage,cubicFt,rate,woodCost,transport,labour,isTkHigh,subtotal,marginAmt,preTax,gst,total,perFrame:preTax,totalPerFrame:total,qty};
 }
 
@@ -437,13 +439,13 @@ function FrameCalcTab({onAddToQuote}){
   const [added,setAdded]=useState(false);
   const isTeak=species==="teak_african";
 
+  const result=useMemo(()=>calculateFrame({species,teakSection,sectionW,sectionH,sectionUnit,openW,openH,openUnit,horns,transport,margin,qty}),[species,teakSection,sectionW,sectionH,sectionUnit,openW,openH,openUnit,horns,transport,margin,qty]);
+
   const mouldingCost=useMemo(()=>{
     if(!result||!parseFloat(mouldingRate)) return 0;
     const runFt=2*result.hFt+result.wFt; // 2H+W, no horns
     return runFt*(parseFloat(mouldingRate)||0);
   },[result,mouldingRate]);
-
-  const result=useMemo(()=>calculateFrame({species,teakSection,sectionW,sectionH,sectionUnit,openW,openH,openUnit,horns,transport,margin,qty}),[species,teakSection,sectionW,sectionH,sectionUnit,openW,openH,openUnit,horns,transport,margin,qty]);
 
   const handleAdd=()=>{
     if(!result) return;
