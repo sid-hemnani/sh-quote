@@ -151,7 +151,7 @@ function calculateFrame(s){
   } else {
     const sec=TEAK_SECTIONS[s.teakSection]; if(!sec) return null;
     for(const b of sec.rates){ if(hFt<=b.maxH){rate=b.rate;break;} }
-    if(!rate) return null;
+    if(!rate) rate=sec.rates[sec.rates.length-1].rate; // use highest bracket for extra-tall openings
   }
   const transport=parseFloat(s.transport)||100;
   const mPct=parseFloat(s.margin)||0;
@@ -425,8 +425,8 @@ function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isF
 function FrameCalcTab({onAddToQuote}){
   const [species,setSpecies]=useState("red_meranti");
   const [sectionUnit,setSectionUnit]=useState("inch");
-  const [sectionW,setSectionW]=useState("");
-  const [sectionH,setSectionH]=useState("");
+  const [sectionW,setSectionW]=useState("5");
+  const [sectionH,setSectionH]=useState("2.5");
   const [teakSection,setTeakSection]=useState("4x2");
   const [openUnit,setOpenUnit]=useState("mm");
   const [openW,setOpenW]=useState("");
