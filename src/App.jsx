@@ -55,9 +55,9 @@ const TEAK_SECTIONS={
   "4x2":  {label:'4" × 2"',  w:4,  h:2,   rates:[{maxH:7.5,rate:1551},{maxH:8.25,rate:1651}]},
   "4x2.5":{label:'4" × 2.5"',w:4,  h:2.5, rates:[{maxH:7.5,rate:1551},{maxH:8.25,rate:1651}]},
   "5x2":  {label:'5" × 2"',  w:5,  h:2,   rates:[{maxH:7.5,rate:1651},{maxH:8.25,rate:1751}]},
-  "5x2.5":{label:'5" × 2.5"',w:5,  h:2.5, rates:[{maxH:7.5,rate:1651},{maxH:8.25,rate:1751}]},
+  "5x2.5":{label:'5" × 2.5"',w:5,  h:2.5, rates:[{maxH:7.5,rate:1701},{maxH:8.0,rate:1801},{maxH:9.99,rate:2001}]},
   "6x2":  {label:'6" × 2"',  w:6,  h:2,   rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1851}]},
-  "6x2.5":{label:'6" × 2.5"',w:6,  h:2.5, rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1851}]}
+  "6x2.5":{label:'6" × 2.5"',w:6,  h:2.5, rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1875},{maxH:9.99,rate:2251,latinTeak:true}]}
 };
 
 // ─── UTILITIES ───────────────────────────────────────────────────────────────
@@ -150,8 +150,9 @@ function calculateFrame(s){
     rate=1250;
   } else {
     const sec=TEAK_SECTIONS[s.teakSection]; if(!sec) return null;
-    for(const b of sec.rates){ if(hFt<=b.maxH){rate=b.rate;break;} }
-    if(!rate) rate=sec.rates[sec.rates.length-1].rate; // use highest bracket for extra-tall openings
+    let isLatinTeak=false;
+    for(const b of sec.rates){ if(hFt<=b.maxH){rate=b.rate;isLatinTeak=!!b.latinTeak;break;} }
+    if(!rate){const last=sec.rates[sec.rates.length-1];rate=last.rate;isLatinTeak=!!last.latinTeak;}
   }
   const transport=parseFloat(s.transport)||100;
   const mPct=parseFloat(s.margin)||0;
@@ -165,7 +166,7 @@ function calculateFrame(s){
   const total=preTax+gst;
   const qty=Math.max(1,parseInt(s.qty)||1);
   // swIn already set above
-  return {swIn,shIn,wFt,hFt,runningFt,hornExtra,cubicRaw,wastage,cubicFt,rate,woodCost,transport,labour,isTkHigh,subtotal,marginAmt,preTax,gst,total,perFrame:preTax,totalPerFrame:total,qty};
+  return {swIn,shIn,wFt,hFt,runningFt,hornExtra,cubicRaw,wastage,cubicFt,rate,woodCost,transport,labour,isTkHigh,isLatinTeak:isLatinTeak||false,subtotal,marginAmt,preTax,gst,total,perFrame:preTax,totalPerFrame:total,qty};
 }
 
 
@@ -576,13 +577,13 @@ function FrameCalcTab({onAddToQuote}){
               {R(["Raw cubic ft",`(${result.swIn}×${result.shIn}×${result.runningFt})/144 = ${result.cubicRaw.toFixed(4)} cft`])}
               {R(["Wastage (10%)",`+${result.wastage.toFixed(4)} cft`])}
               {R(["Total cubic ft",`${result.cubicFt.toFixed(4)} cft`])}
-              {R(["Rate",`₹${fmt(result.rate)}/cft`])}
+              {R(["Rate",`₹${fmt(result.rate)}/cft${result.isLatinTeak?" — Latin Teak":""}`])}
             </div>
 
             {/* Cost breakdown */}
             <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px",marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:600,color:N.ink,marginBottom:8}}>Cost Breakdown</div>
-              {R(["Wood cost",fmtC(result.woodCost)])}
+              {R([`Wood cost${result.isLatinTeak?" (Latin Teak)":""}`,fmtC(result.woodCost)])}
               {R(["Labour",fmtC(result.labour||250)])}
               {R(["Transport",fmtC(result.transport)])}
               {R(["Subtotal",fmtC(result.subtotal)])}
@@ -1485,7 +1486,7 @@ function DoorFrameCalcTab({onAddToQuote}){
             <div style={{fontSize:11,fontWeight:600,color:N.brn,marginBottom:8}}>🪵 Frame</div>
             <div className="brow"><span>Running ft</span><span>{frameResult.runningFt} ft</span></div>
             <div className="brow"><span>Cubic ft (+ 10% wastage)</span><span>{frameResult.cubicFt.toFixed(4)} cft</span></div>
-            <div className="brow"><span>Wood cost (₹{fmt(frameResult.rate)}/cft)</span><span>{fmtC(frameResult.woodCost)}</span></div>
+            <div className="brow"><span>Wood cost (₹{fmt(frameResult.rate)}/cft{frameResult.isLatinTeak?" — Latin Teak":""})</span><span>{fmtC(frameResult.woodCost)}</span></div>
             <div className="brow"><span>Labour + Transport</span><span>{fmtC((frameResult.labour||250)+frameResult.transport)}</span></div>
             {mouldingCost>0&&<div className="brow"><span>Moulding Patti</span><span>{fmtC(mouldingCost)}</span></div>}
             <div style={{display:"flex",justifyContent:"space-between",marginTop:8,paddingTop:8,borderTop:`1px solid ${N.bdr}`,fontSize:13,fontWeight:700,color:N.brn}}>
