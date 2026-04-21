@@ -111,6 +111,23 @@ function calculate(s){
   if(s.rebate){rate+=10;bd.push({label:"Rebate",value:10});}
   if(isMR&&s.plasticPatty){rate+=3;bd.push({label:"Plastic patty",value:3});}
   if(s.teakLipping){const lr=lippingRate(s.variant);if(lr){rate+=lr;bd.push({label:`Teak Lipping Patti`,value:lr});}}
+  // Edgebanding: cost per metre → convert to running ft (perimeter = 2H+2W), then per door
+  if(parseFloat(s.edgebandCost)>0){
+    const perimFt=2*hFt+2*wFt;
+    const perimM=perimFt*0.3048;
+    const ebPerSqFt=(parseFloat(s.edgebandCost)*perimM)/area;
+    rate+=ebPerSqFt;
+    bd.push({label:`Edgebanding (₹${fmt(parseFloat(s.edgebandCost))}/m × ${perimM.toFixed(2)}m)`,value:ebPerSqFt});
+  }
+  // Door moulding
+  if(parseFloat(s.doorMouldingRate)>0){
+    const mSides=parseInt(s.doorMouldingSides)||1;
+    const mRft=2*hFt+wFt; // 2H+W running feet
+    const mTotal=parseFloat(s.doorMouldingRate)*mRft*mSides;
+    const mPerSqFt=mTotal/area;
+    rate+=mPerSqFt;
+    bd.push({label:`Moulding (${mSides} side${mSides>1?"s":""} × ${mRft.toFixed(2)}rft × ₹${fmt(parseFloat(s.doorMouldingRate))}/rft)`,value:mPerSqFt});
+  }
   const isSmall=wFt<2||hFt<5, isBig=wFt>4||hFt>8; // <2ft wide OR <5ft tall
   if(isSmall){rate+=10;bd.push({label:"Small door",value:10});}
   if(isBig){const v=isFire?70:50;rate+=v;bd.push({label:"Big door surcharge",value:v});}
@@ -435,6 +452,7 @@ function FrameCalcTab({onAddToQuote}){
   const [horns,setHorns]=useState(false);
   const [transport,setTransport]=useState("100");
   const [mouldingRate,setMouldingRate]=useState("");
+  const [mouldingSides,setMouldingSides]=useState("1");
   const [margin,setMargin]=useState("15");
   const [qty,setQty]=useState("1");
   const [added,setAdded]=useState(false);
@@ -445,8 +463,9 @@ function FrameCalcTab({onAddToQuote}){
   const mouldingCost=useMemo(()=>{
     if(!result||!parseFloat(mouldingRate)) return 0;
     const runFt=2*result.hFt+result.wFt; // 2H+W, no horns
-    return runFt*(parseFloat(mouldingRate)||0);
-  },[result,mouldingRate]);
+    const sides=parseInt(mouldingSides)||1;
+    return runFt*(parseFloat(mouldingRate)||0)*sides;
+  },[result,mouldingRate,mouldingSides]);
 
   const handleAdd=()=>{
     if(!result) return;
@@ -549,9 +568,14 @@ function FrameCalcTab({onAddToQuote}){
           <div><div className="lbl">Transport (₹)</div><input type="number" value={transport} onChange={e=>setTransport(e.target.value)}/></div>
         </div>
         <div style={{marginBottom:8,background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"10px 12px"}}>
-          <div className="lbl">Moulding Patti (₹ per running ft)</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div className="lbl" style={{marginBottom:0}}>Moulding Patti (₹ per running ft)</div>
+            <div style={{display:"flex",gap:4}}>
+              {[["1","1 Side"],["2","2 Sides"]].map(([v,l])=>(<button key={v} className={"chip"+(mouldingSides===v?" on":"")} onClick={()=>setMouldingSides(v)}>{l}</button>))}
+            </div>
+          </div>
           <input type="number" min="0" placeholder="Leave blank if not applicable" value={mouldingRate} onChange={e=>setMouldingRate(e.target.value)}/>
-          {parseFloat(mouldingRate)>0&&result&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>2×{result.hFt} + {result.wFt} = {(2*result.hFt+result.wFt).toFixed(2)} running ft → ₹{fmt(mouldingCost)} added to frame price</div>}
+          {parseFloat(mouldingRate)>0&&result&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>{parseInt(mouldingSides)||1} side{(parseInt(mouldingSides)||1)>1?"s":""} × {(2*result.hFt+result.wFt).toFixed(2)} rft × ₹{fmt(parseFloat(mouldingRate))} = ₹{fmt(mouldingCost)} added to frame price</div>}
         </div>
       </div>
 
@@ -635,13 +659,16 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
   const [int3614,setInt3614]=useState(ec.int3614||false);
   const [teakLipping,setTeakLipping]=useState(ec.teakLipping||false);
   const [laminateCost,setLaminateCost]=useState(ec.laminateCost||"");
+  const [edgebandCost,setEdgebandCost]=useState(ec.edgebandCost||"");
+  const [doorMouldingRate,setDoorMouldingRate]=useState(ec.doorMouldingRate||"");
+  const [doorMouldingSides,setDoorMouldingSides]=useState(ec.doorMouldingSides||"1");
   const [added,setAdded]=useState(false);
   const isEditing=editIndex!=null;
   const dd=CATALOG[doorType], isMR=dd.type==="mr", isFire=dd.type==="fire";
   const is5509=doorType==="is5509", is3614=doorType==="is3614";
   const vd=dd.variants[variant], cores=vd?.cores||0;
   const changeDoor=dt=>{setDoorType(dt);setVariant(Object.keys(CATALOG[dt].variants)[0]);setMarine(false);setInt5509(false);setInt3614(false);};
-  const result=useMemo(()=>calculate({doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost}),[doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost]);
+  const result=useMemo(()=>calculate({doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides}),[doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides]);
 
   const handleAdd=()=>{
     if(!result) return;
@@ -659,7 +686,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
     if(plasticPatty) addons.push("Plastic Patty");
     if(teakLipping) addons.push("Teak Lipping");
     const desc=`${dd2.label} ${vd2.label}${addons.length?" — "+addons.join(", "):""}${width&&height?` (${width}×${height}${unit})`:""}`;
-    const config={doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost};
+    const config={doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides};
     onAddToQuote({description:desc,doorPrice:result.preTaxPerDoor,framePrice:"",installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:result.preTaxPerDoor,_config:config},editIndex);
     setAdded(true);setTimeout(()=>setAdded(false),2000);
   };
@@ -768,6 +795,26 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
             <Tog on={teakLipping} set={setTeakLipping} label="Teak Lipping Patti" detail={lippingRate(variant)?`+₹${lippingRate(variant)}/sq.ft`:"—"} />
           </div>
         </div>
+
+        {/* Edgebanding */}
+        <div style={{marginBottom:14,background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
+          <div className="lbl" style={{marginBottom:6}}>Edgebanding (₹ per metre)</div>
+          <input type="number" min="0" placeholder="Leave blank if not applicable" value={edgebandCost} onChange={e=>setEdgebandCost(e.target.value)}/>
+          {parseFloat(edgebandCost)>0&&result&&(()=>{const p=2*result.hFt+2*result.wFt;const m=p*0.3048;return <div style={{fontSize:10,color:N.sub,marginTop:4}}>Perimeter: {p.toFixed(2)} rft = {m.toFixed(2)}m · Cost: ₹{fmt(parseFloat(edgebandCost)*m)} per door</div>;})()}
+        </div>
+
+        {/* Door Moulding */}
+        <div style={{marginBottom:22,background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div className="lbl" style={{marginBottom:0}}>Door Moulding (₹ per running ft)</div>
+            <div style={{display:"flex",gap:4}}>
+              {[["1","1 Side"],["2","2 Sides"]].map(([v,l])=>(<button key={v} className={"chip"+(doorMouldingSides===v?" on":"")} onClick={()=>setDoorMouldingSides(v)}>{l}</button>))}
+            </div>
+          </div>
+          <input type="number" min="0" placeholder="Leave blank if not applicable" value={doorMouldingRate} onChange={e=>setDoorMouldingRate(e.target.value)}/>
+          {parseFloat(doorMouldingRate)>0&&result&&(()=>{const rft=2*result.hFt+result.wFt;const sides=parseInt(doorMouldingSides)||1;return <div style={{fontSize:10,color:N.sub,marginTop:4}}>{sides} side{sides>1?"s":""} × {rft.toFixed(2)} rft × ₹{fmt(parseFloat(doorMouldingRate))} = ₹{fmt(parseFloat(doorMouldingRate)*rft*sides)} per door</div>;})()}
+        </div>
+
       </div>
 
       {/* RIGHT — Summary */}
@@ -1205,6 +1252,7 @@ function DoorFrameCalcTab({onAddToQuote}){
   const [transport,setTransport]=useState("100");
   const [laminateCost,setLaminateCost]=useState("");
   const [mouldingRate,setMouldingRate]=useState("");
+  const [mouldingSides,setMouldingSides]=useState("1");
   const [added,setAdded]=useState(false);
 
   const isTeak=species==="teak_african";
@@ -1259,8 +1307,9 @@ function DoorFrameCalcTab({onAddToQuote}){
   const mouldingCost=useMemo(()=>{
     if(!frameResult||!parseFloat(mouldingRate)) return 0;
     const runFt=2*frameResult.hFt+frameResult.wFt;
-    return runFt*(parseFloat(mouldingRate)||0);
-  },[frameResult,mouldingRate]);
+    const sides=parseInt(mouldingSides)||1;
+    return runFt*(parseFloat(mouldingRate)||0)*sides;
+  },[frameResult,mouldingRate,mouldingSides]);
   const combinedPre=(doorResult?.preTaxPerDoor||0)+(frameResult?.perFrame||0)+mouldingCost;
   const combinedTotal=combinedPre*1.18;
 
@@ -1459,9 +1508,14 @@ function DoorFrameCalcTab({onAddToQuote}){
         </div>
 
         <div style={{background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
-          <div className="lbl" style={{marginBottom:8}}>Moulding Patti (₹ per running ft)</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div className="lbl" style={{marginBottom:0}}>Moulding Patti (₹ per running ft)</div>
+            <div style={{display:"flex",gap:4}}>
+              {[["1","1 Side"],["2","2 Sides"]].map(([v,l])=>(<button key={v} className={"chip"+(mouldingSides===v?" on":"")} onClick={()=>setMouldingSides(v)}>{l}</button>))}
+            </div>
+          </div>
           <input type="number" min="0" placeholder="Leave blank if not applicable" value={mouldingRate} onChange={e=>setMouldingRate(e.target.value)}/>
-          {parseFloat(mouldingRate)>0&&frameResult&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>2×{frameResult.hFt} + {frameResult.wFt} = {(2*frameResult.hFt+frameResult.wFt).toFixed(2)} running ft → ₹{fmt(mouldingCost)} added to frame price</div>}
+          {parseFloat(mouldingRate)>0&&frameResult&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>{parseInt(mouldingSides)||1} side{(parseInt(mouldingSides)||1)>1?"s":""} × {(2*frameResult.hFt+frameResult.wFt).toFixed(2)} rft × ₹{fmt(parseFloat(mouldingRate))} = ₹{fmt(mouldingCost)} added to frame price</div>}
         </div>
       </div>
 
