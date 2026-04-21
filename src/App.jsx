@@ -146,12 +146,11 @@ function calculateFrame(s){
   const cubicRaw=(FACE_IN*shIn*runningFt)/144;
   const wastage=cubicRaw*0.10;
   const cubicFt=cubicRaw+wastage;
-  let rate=null;
+  let rate=null, isLatinTeak=false;
   if(s.species==="red_meranti"){
     rate=1250;
   } else {
     const sec=TEAK_SECTIONS[s.teakSection]; if(!sec) return null;
-    let isLatinTeak=false;
     for(const b of sec.rates){ if(hFt<=b.maxH){rate=b.rate;isLatinTeak=!!b.latinTeak;break;} }
     if(!rate){const last=sec.rates[sec.rates.length-1];rate=last.rate;isLatinTeak=!!last.latinTeak;}
   }
