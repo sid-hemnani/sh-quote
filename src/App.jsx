@@ -57,7 +57,8 @@ const TEAK_SECTIONS={
   "5x2":  {label:'5" × 2"',  w:5,  h:2,   rates:[{maxH:7.5,rate:1651},{maxH:8.25,rate:1751}]},
   "5x2.5":{label:'5" × 2.5"',w:5,  h:2.5, rates:[{maxH:7.5,rate:1701},{maxH:8.0,rate:1801},{maxH:9.99,rate:2001}]},
   "6x2":  {label:'6" × 2"',  w:6,  h:2,   rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1851}]},
-  "6x2.5":{label:'6" × 2.5"',w:6,  h:2.5, rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1875},{maxH:9.99,rate:2251,latinTeak:true}]}
+  "6x2.5":{label:'6" × 2.5"',w:6,  h:2.5, rates:[{maxH:7.5,rate:1751},{maxH:8.25,rate:1875},{maxH:9.99,rate:2251,latinTeak:true}]},
+  "7x2.5":{label:'7" × 2.5"',w:7,  h:2.5, rates:[{maxH:8.0,rate:2101},{maxH:9.99,rate:2101}]}
 };
 
 // ─── UTILITIES ───────────────────────────────────────────────────────────────
