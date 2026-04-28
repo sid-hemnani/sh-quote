@@ -42,8 +42,9 @@ const TNC=["Government taxes as applicable over and above the quoted rates.","Tr
 
 // ─── DOOR CATALOG ────────────────────────────────────────────────────────────
 const CATALOG={
-  pine_mr:    {label:"Pine MR Door",    sub:"Occum Face",       type:"mr",   variants:{"30mm":{rate:90,cores:1,label:"30mm"},"35mm":{rate:95,cores:1,label:"35mm"},"40mm":{rate:110,cores:2,label:"40mm"},"45mm":{rate:125,cores:3,label:"45mm"},"50mm":{rate:140,cores:3,label:"50mm"}}},
-  hardwood_mr:{label:"Hardwood MR Door",sub:"Occum Face",       type:"mr",   variants:{"30mm":{rate:64,cores:1,label:"30mm"},"35mm":{rate:72,cores:1,label:"35mm"}}},
+  pine_mr:          {label:"Pine MR Door",         sub:"Occum Face",type:"mr",variants:{"30mm":{rate:90,cores:1,label:"30mm"},"35mm":{rate:95,cores:1,label:"35mm"},"40mm":{rate:110,cores:2,label:"40mm"},"45mm":{rate:125,cores:3,label:"45mm"},"50mm":{rate:140,cores:3,label:"50mm"}}},
+  pine_particle_mr: {label:"Pine + Particle MR Door",sub:"Occum Face · Lock Rail included",type:"mr",variants:{"30mm":{rate:85,cores:1,label:"30mm"},"35mm":{rate:95,cores:1,label:"35mm"},"40mm":{rate:110,cores:2,label:"40mm"},"45mm":{rate:125,cores:3,label:"45mm"}}},
+  hardwood_mr:      {label:"Hardwood MR Door",     sub:"Occum Face",type:"mr",variants:{"30mm":{rate:69,cores:1,label:"30mm"},"35mm":{rate:77,cores:1,label:"35mm"}}},
   is5509:     {label:"IS 5509",         sub:"Fire Door",        type:"fire", variants:{"40mm_60":{rate:160,label:"40mm / 60 min"},"45mm_60":{rate:160,label:"45mm / 60 min"},"45mm_120":{rate:185,label:"45mm / 120 min"}}},
   is3614:     {label:"IS 3614",         sub:"Fire Door · BS 476",type:"fire", variants:{"45mm_60":{rateNo:235,rateWith:275,label:"45mm / 60 min",intumescentBaked:true},"45mm_120":{rateNo:290,rateWith:330,label:"45mm / 120 min",intumescentBaked:true},"50mm_120":{rateNo:320,rateWith:360,label:"50mm / 120 min",intumescentBaked:true},"55mm_120":{rateNo:360,rateWith:400,label:"55mm / 120 min",intumescentBaked:true}}}
 };
