@@ -304,7 +304,7 @@ function Tog({on,set,label,detail}){
 }
 
 // ─── PRINT ZONE ──────────────────────────────────────────────────────────────
-function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isFinalQuote=false,hwTotal=0,hwLines=[],grandPreGst=0}){
+function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isFinalQuote=false,hwTotal=0,hwLines=[],grandPreGst=0,customTnc=null}){
   const doorItems=quote.items||[];
   const resolvedHwLines = hwLines.length>0 ? hwLines : (quote.hwLine?[{...quote.hwLine,isSubtotal:true}]:[]);
   const allItems=[...doorItems];
@@ -332,7 +332,10 @@ function PrintZone({quote,client,piRef,dateRef,validRef,printId="print-zone",isF
     "Cost of glass not included and to be provided by the customer.",
     "Inspection if required to be carried out at the factory before delivery.",
   ];
-  const tncToUse = isFinalQuote ? TNC_FINAL : TNC;
+  // customTnc is a newline-separated string from QuoteBuilder
+  const tncToUse = customTnc
+    ? customTnc.split("\n").map(s=>s.trim()).filter(Boolean)
+    : (isFinalQuote ? TNC_FINAL : TNC);
   return (
     <div id={printId} style={{fontFamily:"Arial,sans-serif",fontSize:11,color:"#000",background:"#fff",padding:0,width:"794px"}}>
       {/* Header — dark navy bar */}
@@ -900,15 +903,20 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
 }
 
 // ─── QUOTE BUILDER TAB ───────────────────────────────────────────────────────
-function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDismissBanner}){
+function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDismissBanner,loadedTnc,onTncLoaded}){
   const [client,setClient]=useState({name:"",company:"",phone:"",address:"",site:""});
   const [piNo,setPiNo]=useState("SHQ-…");
   useEffect(()=>{getNextQuoteNum().then(setPiNo);},[]);
+  useEffect(()=>{
+    if(loadedTnc){setTnc(loadedTnc);if(onTncLoaded)onTncLoaded();}
+  },[loadedTnc]);
   const [date]=useState(today());
   const [validity]=useState(()=>{const d=new Date();d.setDate(d.getDate()+7);return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});});
   const [showPrint,setShowPrint]=useState(false);
   const [transport,setTransport]=useState("");
   const [labour,setLabour]=useState("");
+  const [tnc,setTnc]=useState("Govt. taxes as applicable and currently taken as 18%.\nPayment terms: 30% advance on PO, 30% during processing, 30% on delivery and 10% on job completion.\nDoor Frames: Delivery in 7 working days after receipt of confirmed PO and mobilisation advance.\nFrame finish size will be 5–6mm less on both sides.\nDoor frames: includes black japan.\nDoors: Delivery in 15 days once laminate is supplied to the factory.\nLaminate not included in the price mentioned above.\nQuote is valid for the sizes provided for shutters and frames and a duration of 7 days only.\nPrices do not include any hardware or installation and finishing.\nPrices are ex-warehouse, transport to site and unloading at site in the client's account.\nCost of glass not included in door price.\nInspection if required to be carried out at the factory before delivery.\nOrder once confirmed cannot be amended or cancelled.".replace(/\\n/g,"\n"));
+  const [showTnc,setShowTnc]=useState(false);
   const [saving,setSaving]=useState(false);
   const [saveMsg,setSaveMsg]=useState("");
 
@@ -1000,7 +1008,7 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDi
     setSaving(false);setTimeout(()=>setSaveMsg(""),3000);
   };
 
-  const quoteData={items:items.map(it=>({...it,totalSet:(parseFloat(it.doorPrice)||0)+(parseFloat(it.framePrice)||0)+(parseFloat(it.installation)||0)+(parseFloat(it.polishing)||0)})),transport:extraT,labour:extraL};
+  const quoteData={items:items.map(it=>({...it,totalSet:(parseFloat(it.doorPrice)||0)+(parseFloat(it.framePrice)||0)+(parseFloat(it.installation)||0)+(parseFloat(it.polishing)||0)})),transport:extraT,labour:extraL,tnc};
 
   return (
     <div style={{padding:"22px 20px",maxWidth:1100,margin:"0 auto"}} className="mob-pad">
@@ -1013,7 +1021,7 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDi
           <button onClick={onDismissBanner} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:N.sub,padding:"0 4px",lineHeight:1}}>✕</button>
         </div>
       )}
-      {showPrint&&<PrintZone quote={quoteData} client={client} piRef={piNo} dateRef={date} validRef={validity}/>}
+      {showPrint&&<PrintZone quote={quoteData} client={client} piRef={piNo} dateRef={date} validRef={validity} customTnc={tnc}/>}
 
       {/* Client */}
       <div style={{background:N.srf,border:`1px solid ${N.bdr}`,borderRadius:6,padding:"18px 20px",marginBottom:18}}>
@@ -1136,6 +1144,19 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDi
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {/* Editable T&C */}
+            <div style={{marginBottom:12,border:`1px solid ${N.bdr}`,borderRadius:4,overflow:"hidden"}}>
+              <div onClick={()=>setShowTnc(v=>!v)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",background:N.lite,cursor:"pointer",userSelect:"none"}}>
+                <span style={{fontSize:12,fontWeight:600,color:N.navy}}>📋 Terms &amp; Conditions</span>
+                <span style={{fontSize:11,color:N.sub}}>{showTnc?"▲ collapse":"▼ edit"}</span>
+              </div>
+              {showTnc&&(
+                <div style={{padding:"10px 14px",background:"#fff"}}>
+                  <div style={{fontSize:10,color:N.sub,marginBottom:6}}>One term per line. Appears on the printed quote.</div>
+                  <textarea value={tnc} onChange={e=>setTnc(e.target.value)} rows={13} style={{width:"100%",fontSize:11,fontFamily:"inherit",padding:"8px",border:`1px solid ${N.bdr}`,borderRadius:3,resize:"vertical",lineHeight:1.6,color:N.ink}}/>
+                </div>
+              )}
+            </div>
             <button className="btn-primary" onClick={handleDownload} disabled={downloading} style={{padding:"12px 24px",fontSize:13}}>{downloading?"⏳ Generating PDF...":"⬇ Download Quote PDF"}</button>
             <button className="btn-brn" onClick={handleSave} disabled={saving} style={{padding:"12px 24px",fontSize:13}}>
               {saving?"Saving...":"☁ Save Quote"}
@@ -1208,6 +1229,7 @@ function SavedQuotesTab({onLoadQuote}){
             piRef={printQ.piNo||"SHQ-???"}
             dateRef={printQ.date||""}
             validRef=""
+            customTnc={printQ.tnc||null}
             printId="saved-print-zone"
           />
         </div>
@@ -1665,6 +1687,9 @@ function FinalQuoteTab({items, boqClient}){
   // ── Quote meta ──
   const [piNo, setPiNo]=useState("SHQ-…");
   useEffect(()=>{getNextQuoteNum().then(setPiNo);},[]);
+  useEffect(()=>{
+    if(loadedTnc){setTnc(loadedTnc);if(onTncLoaded)onTncLoaded();}
+  },[loadedTnc]);
   const [date]=useState(today());
   const [validity]=useState(()=>{
     const d=new Date(); d.setDate(d.getDate()+7);
@@ -1908,7 +1933,8 @@ export default function App(){
   const [quoteItems,setQuoteItems]=useState([]);
   const [editingIndex,setEditingIndex]=useState(null);
   const [editingConfig,setEditingConfig]=useState(null);
-  const [batchBanner,setBatchBanner]=useState(null); // null | number (count of loaded items)
+  const [batchBanner,setBatchBanner]=useState(null);
+  const [loadedTnc,setLoadedTnc]=useState(null); // null | number (count of loaded items)
   const [boqClient,setBoqClient]=useState(null);     // client metadata from BOQ URL
 
   // ── Batch URL loading (BOQ deep link) ────────────────────────────────────
@@ -2002,6 +2028,7 @@ export default function App(){
 
   const handleLoadQuote=(q)=>{
     setQuoteItems(q.items||[]);
+    if(q.tnc) setLoadedTnc(q.tnc);
     setTab("quote");
   };
 
@@ -2056,7 +2083,7 @@ export default function App(){
         {tab==="calc"&&calcMode==="door"&&<DoorCalcTab key={editingIndex??'new'} onAddToQuote={handleAddToQuote} editConfig={editingConfig} editIndex={editingIndex}/>}
         {tab==="calc"&&calcMode==="frame"&&<FrameCalcTab onAddToQuote={handleAddToQuote}/>}
         {tab==="calc"&&calcMode==="combo"&&<DoorFrameCalcTab onAddToQuote={handleAddToQuote}/>}
-        {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")} batchBanner={batchBanner} onDismissBanner={()=>setBatchBanner(null)}/>}
+        {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")} batchBanner={batchBanner} onDismissBanner={()=>setBatchBanner(null)} loadedTnc={loadedTnc} onTncLoaded={()=>setLoadedTnc(null)}/>}
         {tab==="saved"&&<SavedQuotesTab onLoadQuote={handleLoadQuote}/>}
         {tab==="final"&&<FinalQuoteTab items={quoteItems} boqClient={boqClient}/>}
       </div>
