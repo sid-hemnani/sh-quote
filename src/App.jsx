@@ -1273,20 +1273,31 @@ function DoorFrameCalcTab({onAddToQuote}){
     if(isTeak) return TEAK_SECTIONS[teakSection]?.h||0;
     return toInchCeil(sectionH,sectionUnit)||0;
   },[isTeak,teakSection,sectionH,sectionUnit]);
-  const sfFt=sectionDepthIn/12; // use depth for door size math
+  const sfFt=sectionDepthIn/12; // use depth for frame price calc (rounded)
 
-  // Door dims in ft
+  // Exact depth in ft for door sizing (no ceiling rounding)
+  const sfFtExact=useMemo(()=>{
+    if(isTeak) return (TEAK_SECTIONS[teakSection]?.h||0)/12;
+    const v=parseFloat(sectionH)||0;
+    if(!v) return 0;
+    if(sectionUnit==="mm") return v/304.8;
+    return v/12; // inches
+  },[isTeak,teakSection,sectionH,sectionUnit]);
+
+  // Door dims in ft (exact)
   const dWFt=toFt(width,unit)||0;
   const dHFt=toFt(height,unit)||0;
-  // Frame opening dims in ft (frame-first)
+  // Frame opening dims in ft — rounded for price calc, exact for door sizing
   const fWFt=toFeetQ(openW,openUnit)||0;
   const fHFt=toFeetQ(openH,openUnit)||0;
+  const fWFtExact=(()=>{const v=parseFloat(openW)||0;if(!v)return 0;if(openUnit==="mm")return v/304.8;if(openUnit==="inch")return v/12;return v;})();
+  const fHFtExact=(()=>{const v=parseFloat(openH)||0;if(!v)return 0;if(openUnit==="mm")return v/304.8;if(openUnit==="inch")return v/12;return v;})();
 
-  // Auto-derived values
-  const autoFrameW=dWFt&&sfFt?dWFt+2*sfFt:0;
-  const autoFrameH=dHFt&&sfFt?dHFt+sfFt:0;
-  const autoDoorW=fWFt&&sfFt?fWFt-2*sfFt:0;
-  const autoDoorH=fHFt&&sfFt?fHFt-sfFt:0;
+  // Auto-derived values — use EXACT dims so mm arithmetic is precise
+  const autoFrameW=dWFt&&sfFtExact?dWFt+2*sfFtExact:0;
+  const autoFrameH=dHFt&&sfFtExact?dHFt+sfFtExact:0;
+  const autoDoorW=fWFtExact&&sfFtExact?fWFtExact-2*sfFtExact:0;
+  const autoDoorH=fHFtExact&&sfFtExact?fHFtExact-sfFtExact:0;
 
   // Effective values for each calc
   const effDoorW=startMode==="door_first"?dWFt:autoDoorW;
