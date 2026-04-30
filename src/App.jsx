@@ -903,13 +903,16 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
 }
 
 // ─── QUOTE BUILDER TAB ───────────────────────────────────────────────────────
-function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDismissBanner,loadedTnc,onTncLoaded}){
+function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDismissBanner,loadedTnc,onTncLoaded,loadedClient,onClientLoaded}){
   const [client,setClient]=useState({name:"",company:"",phone:"",address:"",site:""});
   const [piNo,setPiNo]=useState("SHQ-…");
   useEffect(()=>{getNextQuoteNum().then(setPiNo);},[]);
   useEffect(()=>{
     if(loadedTnc){setTnc(loadedTnc);if(onTncLoaded)onTncLoaded();}
   },[loadedTnc]);
+  useEffect(()=>{
+    if(loadedClient){setClient(loadedClient);if(onClientLoaded)onClientLoaded();}
+  },[loadedClient]);
   const [date]=useState(today());
   const [validity]=useState(()=>{const d=new Date();d.setDate(d.getDate()+7);return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});});
   const [showPrint,setShowPrint]=useState(false);
@@ -1002,7 +1005,7 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDi
     if(!FIREBASE_CONFIG){setSaveMsg("Firebase not configured — add config to save");setTimeout(()=>setSaveMsg(""),3000);return;}
     setSaving(true);
     try{
-      await fbSave({client,piNo,date,items,transport:extraT,labour:extraL,subtotal,gst,grand});
+      await fbSave({client,piNo,date,items,transport:extraT,labour:extraL,subtotal,gst,grand,tnc});
       setSaveMsg("Quote saved ✓");onSaveQuote&&onSaveQuote();
     }catch(e){setSaveMsg("Save failed: "+e.message);}
     setSaving(false);setTimeout(()=>setSaveMsg(""),3000);
@@ -1690,6 +1693,9 @@ function FinalQuoteTab({items, boqClient}){
   useEffect(()=>{
     if(loadedTnc){setTnc(loadedTnc);if(onTncLoaded)onTncLoaded();}
   },[loadedTnc]);
+  useEffect(()=>{
+    if(loadedClient){setClient(loadedClient);if(onClientLoaded)onClientLoaded();}
+  },[loadedClient]);
   const [date]=useState(today());
   const [validity]=useState(()=>{
     const d=new Date(); d.setDate(d.getDate()+7);
@@ -1934,7 +1940,8 @@ export default function App(){
   const [editingIndex,setEditingIndex]=useState(null);
   const [editingConfig,setEditingConfig]=useState(null);
   const [batchBanner,setBatchBanner]=useState(null);
-  const [loadedTnc,setLoadedTnc]=useState(null); // null | number (count of loaded items)
+  const [loadedTnc,setLoadedTnc]=useState(null);
+  const [loadedClient,setLoadedClient]=useState(null); // null | number (count of loaded items)
   const [boqClient,setBoqClient]=useState(null);     // client metadata from BOQ URL
 
   // ── Batch URL loading (BOQ deep link) ────────────────────────────────────
@@ -2029,6 +2036,7 @@ export default function App(){
   const handleLoadQuote=(q)=>{
     setQuoteItems(q.items||[]);
     if(q.tnc) setLoadedTnc(q.tnc);
+    if(q.client) setLoadedClient(q.client);
     setTab("quote");
   };
 
@@ -2083,7 +2091,7 @@ export default function App(){
         {tab==="calc"&&calcMode==="door"&&<DoorCalcTab key={editingIndex??'new'} onAddToQuote={handleAddToQuote} editConfig={editingConfig} editIndex={editingIndex}/>}
         {tab==="calc"&&calcMode==="frame"&&<FrameCalcTab onAddToQuote={handleAddToQuote}/>}
         {tab==="calc"&&calcMode==="combo"&&<DoorFrameCalcTab onAddToQuote={handleAddToQuote}/>}
-        {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")} batchBanner={batchBanner} onDismissBanner={()=>setBatchBanner(null)} loadedTnc={loadedTnc} onTncLoaded={()=>setLoadedTnc(null)}/>}
+        {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")} batchBanner={batchBanner} onDismissBanner={()=>setBatchBanner(null)} loadedTnc={loadedTnc} onTncLoaded={()=>setLoadedTnc(null)} loadedClient={loadedClient} onClientLoaded={()=>setLoadedClient(null)}/>}
         {tab==="saved"&&<SavedQuotesTab onLoadQuote={handleLoadQuote}/>}
         {tab==="final"&&<FinalQuoteTab items={quoteItems} boqClient={boqClient}/>}
       </div>
