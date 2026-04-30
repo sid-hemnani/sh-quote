@@ -1243,8 +1243,8 @@ function DoorFrameCalcTab({onAddToQuote}){
   // Frame state
   const [species,setSpecies]=useState("red_meranti");
   const [sectionUnit,setSectionUnit]=useState("inch");
-  const [sectionW,setSectionW]=useState("");
-  const [sectionH,setSectionH]=useState("");
+  const [sectionW,setSectionW]=useState("5");
+  const [sectionH,setSectionH]=useState("2.5");
   const [teakSection,setTeakSection]=useState("4x2");
   const [openUnit,setOpenUnit]=useState("mm");
   const [openW,setOpenW]=useState("");
@@ -1462,11 +1462,11 @@ function DoorFrameCalcTab({onAddToQuote}){
               </div>
             ):(
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><div className="lbl">Width ({sectionUnit})</div><input type="number" placeholder={sectionUnit==="mm"?"e.g. 100":"e.g. 4"} value={sectionW} onChange={e=>setSectionW(e.target.value)}/>{sectionW&&sectionUnit==="mm"&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toInchCeil(sectionW,"mm")}"</div>}</div>
-                <div><div className="lbl">Depth ({sectionUnit})</div><input type="number" placeholder={sectionUnit==="mm"?"e.g. 50":"e.g. 2"} value={sectionH} onChange={e=>setSectionH(e.target.value)}/>{sectionH&&sectionUnit==="mm"&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toInchCeil(sectionH,"mm")}"</div>}</div>
+                <div><div className="lbl">Face Width ({sectionUnit})<span style={{fontSize:9,color:N.sub,marginLeft:4}}>e.g. 4, 5, 6</span></div><input type="number" placeholder={sectionUnit==="mm"?"e.g. 125":"e.g. 5"} value={sectionW} onChange={e=>setSectionW(e.target.value)}/>{sectionW&&sectionUnit==="mm"&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toInchCeil(sectionW,"mm")}"</div>}</div>
+                <div><div className="lbl">Wall Depth ({sectionUnit})<span style={{fontSize:9,color:N.sub,marginLeft:4}}>e.g. 2, 2.5</span></div><input type="number" placeholder={sectionUnit==="mm"?"e.g. 63":"e.g. 2.5"} value={sectionH} onChange={e=>setSectionH(e.target.value)}/>{sectionH&&sectionUnit==="mm"&&<div style={{fontSize:10,color:N.sub,marginTop:3}}>→ {toInchCeil(sectionH,"mm")}"</div>}</div>
               </div>
             )}
-            {sectionFaceIn>0&&<div style={{fontSize:10,color:N.sub,marginTop:5}}>Face: {sectionFaceIn}" | Depth: {sectionDepthIn}" = {sfFt.toFixed(3)} ft (used for door clearance)</div>}
+            {sectionDepthIn>0&&<div style={{fontSize:10,color:N.sub,marginTop:5}}>Face: {sectionFaceIn}" | Wall depth: {sectionDepthIn}" = {sfFt.toFixed(3)} ft → door is {(sfFt*2*304.8).toFixed(0)}mm narrower &amp; {(sfFt*304.8).toFixed(0)}mm shorter than frame opening</div>}
           </div>
 
           {startMode==="frame_first"?(
