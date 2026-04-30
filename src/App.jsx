@@ -23,7 +23,8 @@ function getDB(){
   try{ const app=getApps().length?getApps()[0]:initializeApp(FIREBASE_CONFIG); _db=getFirestore(app); return _db; }
   catch(e){ console.error("Firebase:",e); return null; }
 }
-const fbSave  = async d => { const db=getDB(); if(!db) throw new Error("no_db"); return addDoc(collection(db,"quotes"),{...d,savedAt:serverTimestamp()}); };
+const fbSave   = async d   => { const db=getDB(); if(!db) throw new Error("no_db"); return addDoc(collection(db,"quotes"),{...d,savedAt:serverTimestamp()}); };
+const fbUpdate = async (id,d) => { const db=getDB(); if(!db) throw new Error("no_db"); await updateDoc(doc(db,"quotes",id),{...d,updatedAt:serverTimestamp()}); };
 const fbLoad  = async () => { const db=getDB(); if(!db) return []; const s=await getDocs(query(collection(db,"quotes"),orderBy("savedAt","desc"))); return s.docs.map(d=>({id:d.id,...d.data()})); };
 const fbDel   = async id => { const db=getDB(); if(!db) return; await deleteDoc(doc(getDB(),"quotes",id)); };
 
@@ -903,7 +904,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
 }
 
 // ─── QUOTE BUILDER TAB ───────────────────────────────────────────────────────
-function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDismissBanner,loadedTnc,onTncLoaded,loadedClient,onClientLoaded}){
+function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDismissBanner,loadedTnc,onTncLoaded,loadedClient,onClientLoaded,loadedDocId,onClearDocId}){
   const [client,setClient]=useState({name:"",company:"",phone:"",address:"",site:""});
   const [piNo,setPiNo]=useState("SHQ-…");
   useEffect(()=>{getNextQuoteNum().then(setPiNo);},[]);
@@ -913,6 +914,9 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDi
   useEffect(()=>{
     if(loadedClient){setClient(loadedClient);if(onClientLoaded)onClientLoaded();}
   },[loadedClient]);
+  useEffect(()=>{
+    if(loadedDocId!==null){setDocId(loadedDocId);}
+  },[loadedDocId]);
   const [date]=useState(today());
   const [validity]=useState(()=>{const d=new Date();d.setDate(d.getDate()+7);return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});});
   const [showPrint,setShowPrint]=useState(false);
@@ -920,6 +924,7 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDi
   const [labour,setLabour]=useState("");
   const [tnc,setTnc]=useState("Govt. taxes as applicable and currently taken as 18%.\nPayment terms: 30% advance on PO, 30% during processing, 30% on delivery and 10% on job completion.\nDoor Frames: Delivery in 7 working days after receipt of confirmed PO and mobilisation advance.\nFrame finish size will be 5–6mm less on both sides.\nDoor frames: includes black japan.\nDoors: Delivery in 15 days once laminate is supplied to the factory.\nLaminate not included in the price mentioned above.\nQuote is valid for the sizes provided for shutters and frames and a duration of 7 days only.\nPrices do not include any hardware or installation and finishing.\nPrices are ex-warehouse, transport to site and unloading at site in the client's account.\nCost of glass not included in door price.\nInspection if required to be carried out at the factory before delivery.\nOrder once confirmed cannot be amended or cancelled.".replace(/\\n/g,"\n"));
   const [showTnc,setShowTnc]=useState(false);
+  const [docId,setDocId]=useState(null); // Firebase doc ID for overwrite
   const [saving,setSaving]=useState(false);
   const [saveMsg,setSaveMsg]=useState("");
 
@@ -1005,8 +1010,15 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDi
     if(!FIREBASE_CONFIG){setSaveMsg("Firebase not configured — add config to save");setTimeout(()=>setSaveMsg(""),3000);return;}
     setSaving(true);
     try{
-      await fbSave({client,piNo,date,items,transport:extraT,labour:extraL,subtotal,gst,grand,tnc});
-      setSaveMsg("Quote saved ✓");onSaveQuote&&onSaveQuote();
+      const payload={client,piNo,date,items,transport:extraT,labour:extraL,subtotal,gst,grand,tnc};
+      if(docId){
+        await fbUpdate(docId,payload);
+        setSaveMsg("Quote updated ✓");
+      } else {
+        await fbSave(payload);
+        setSaveMsg("Quote saved ✓");
+      }
+      onSaveQuote&&onSaveQuote();
     }catch(e){setSaveMsg("Save failed: "+e.message);}
     setSaving(false);setTimeout(()=>setSaveMsg(""),3000);
   };
@@ -1162,7 +1174,7 @@ function QuoteBuilderTab({items,setItems,onEditItem,onSaveQuote,batchBanner,onDi
             </div>
             <button className="btn-primary" onClick={handleDownload} disabled={downloading} style={{padding:"12px 24px",fontSize:13}}>{downloading?"⏳ Generating PDF...":"⬇ Download Quote PDF"}</button>
             <button className="btn-brn" onClick={handleSave} disabled={saving} style={{padding:"12px 24px",fontSize:13}}>
-              {saving?"Saving...":"☁ Save Quote"}
+              {saving?(docId?"Updating...":"Saving..."):(docId?"☁ Update Quote":"☁ Save Quote")}
             </button>
             {saveMsg&&<div style={{fontSize:11,color:saveMsg.includes("✓")?N.ok:N.fire,textAlign:"center"}}>{saveMsg}</div>}
             
@@ -1696,6 +1708,9 @@ function FinalQuoteTab({items, boqClient}){
   useEffect(()=>{
     if(loadedClient){setClient(loadedClient);if(onClientLoaded)onClientLoaded();}
   },[loadedClient]);
+  useEffect(()=>{
+    if(loadedDocId!==null){setDocId(loadedDocId);}
+  },[loadedDocId]);
   const [date]=useState(today());
   const [validity]=useState(()=>{
     const d=new Date(); d.setDate(d.getDate()+7);
@@ -1941,7 +1956,8 @@ export default function App(){
   const [editingConfig,setEditingConfig]=useState(null);
   const [batchBanner,setBatchBanner]=useState(null);
   const [loadedTnc,setLoadedTnc]=useState(null);
-  const [loadedClient,setLoadedClient]=useState(null); // null | number (count of loaded items)
+  const [loadedClient,setLoadedClient]=useState(null);
+  const [loadedDocId,setLoadedDocId]=useState(null); // null | number (count of loaded items)
   const [boqClient,setBoqClient]=useState(null);     // client metadata from BOQ URL
 
   // ── Batch URL loading (BOQ deep link) ────────────────────────────────────
@@ -2037,6 +2053,7 @@ export default function App(){
     setQuoteItems(q.items||[]);
     if(q.tnc) setLoadedTnc(q.tnc);
     if(q.client) setLoadedClient(q.client);
+    setLoadedDocId(q.id||null);
     setTab("quote");
   };
 
@@ -2091,7 +2108,7 @@ export default function App(){
         {tab==="calc"&&calcMode==="door"&&<DoorCalcTab key={editingIndex??'new'} onAddToQuote={handleAddToQuote} editConfig={editingConfig} editIndex={editingIndex}/>}
         {tab==="calc"&&calcMode==="frame"&&<FrameCalcTab onAddToQuote={handleAddToQuote}/>}
         {tab==="calc"&&calcMode==="combo"&&<DoorFrameCalcTab onAddToQuote={handleAddToQuote}/>}
-        {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")} batchBanner={batchBanner} onDismissBanner={()=>setBatchBanner(null)} loadedTnc={loadedTnc} onTncLoaded={()=>setLoadedTnc(null)} loadedClient={loadedClient} onClientLoaded={()=>setLoadedClient(null)}/>}
+        {tab==="quote"&&<QuoteBuilderTab items={quoteItems} setItems={setQuoteItems} onEditItem={handleEditItem} onSaveQuote={()=>setTab("saved")} batchBanner={batchBanner} onDismissBanner={()=>setBatchBanner(null)} loadedTnc={loadedTnc} onTncLoaded={()=>setLoadedTnc(null)} loadedClient={loadedClient} onClientLoaded={()=>setLoadedClient(null)} loadedDocId={loadedDocId} onClearDocId={()=>setLoadedDocId(null)}/>}
         {tab==="saved"&&<SavedQuotesTab onLoadQuote={handleLoadQuote}/>}
         {tab==="final"&&<FinalQuoteTab items={quoteItems} boqClient={boqClient}/>}
       </div>
