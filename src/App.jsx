@@ -134,7 +134,19 @@ function calculate(s){
   if(isBig){const v=isFire?70:50;rate+=v;bd.push({label:"Big door surcharge",value:v});}
   if(qty<10){rate+=3;bd.push({label:"Multi-size",value:3});}
   if(isFire){rate+=3;bd.push({label:"FRD surcharge",value:3});}
-  rate+=15;bd.push({label:"Transport",value:15});
+  // Transport — per sqft or flat per door
+  const tMode=s.transportMode||"per_sqft";
+  const tRate=parseFloat(s.transportRate);
+  const tVal=(!isNaN(tRate)&&tRate>=0)?tRate:15; // default ₹15/sqft
+  if(tMode==="per_door"){
+    // flat per door → convert to per-sqft equivalent for rate
+    const tPerSqFt=area>0?tVal/area:0;
+    rate+=tPerSqFt;
+    bd.push({label:`Transport (₹${fmt(tVal)}/door)`,value:tPerSqFt});
+  } else {
+    rate+=tVal;
+    bd.push({label:`Transport (₹${fmt(tVal)}/sq.ft)`,value:tVal});
+  }
   const doorVal=rate*area*qty, mAmt=doorVal*(mPct/100);
   const lamC=(parseFloat(s.laminateCost)||0)*qty;
   if(lamC>0) bd.push({label:"Laminate cost",value:parseFloat(s.laminateCost)});
@@ -663,13 +675,15 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
   const [edgebandCost,setEdgebandCost]=useState(ec.edgebandCost||"");
   const [doorMouldingRate,setDoorMouldingRate]=useState(ec.doorMouldingRate||"");
   const [doorMouldingSides,setDoorMouldingSides]=useState(ec.doorMouldingSides||"1");
+  const [transportMode,setTransportMode]=useState(ec.transportMode||"per_sqft");
+  const [transportRate,setTransportRate]=useState(ec.transportRate!==undefined?ec.transportRate:"15");
   const [added,setAdded]=useState(false);
   const isEditing=editIndex!=null;
   const dd=CATALOG[doorType], isMR=dd.type==="mr", isFire=dd.type==="fire";
   const is5509=doorType==="is5509", is3614=doorType==="is3614";
   const vd=dd.variants[variant], cores=vd?.cores||0;
   const changeDoor=dt=>{setDoorType(dt);setVariant(Object.keys(CATALOG[dt].variants)[0]);setMarine(false);setInt5509(false);setInt3614(false);};
-  const result=useMemo(()=>calculate({doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides}),[doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides]);
+  const result=useMemo(()=>calculate({doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides,transportMode,transportRate}),[doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides,transportMode,transportRate]);
 
   const handleAdd=()=>{
     if(!result) return;
@@ -687,7 +701,7 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
     if(plasticPatty) addons.push("Plastic Patty");
     if(teakLipping) addons.push("Teak Lipping");
     const desc=`${dd2.label} ${vd2.label}${addons.length?" — "+addons.join(", "):""}${width&&height?` (${width}×${height}${unit})`:""}`;
-    const config={doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides};
+    const config={doorType,variant,unit,width,height,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,edgebandCost,doorMouldingRate,doorMouldingSides,transportMode,transportRate};
     onAddToQuote({description:desc,doorPrice:result.preTaxPerDoor,framePrice:"",installation:"",polishing:"",qty:parseInt(qty)||1,totalSet:result.preTaxPerDoor,_config:config},editIndex);
     setAdded(true);setTimeout(()=>setAdded(false),2000);
   };
@@ -769,6 +783,23 @@ function DoorCalcTab({onAddToQuote,editConfig,editIndex}){
           <div className="lbl">Laminate Cost (₹ per door)</div>
           <input type="number" min="0" placeholder="e.g. 1800 — added directly to door price" value={laminateCost} onChange={e=>setLaminateCost(e.target.value)}/>
           {parseFloat(laminateCost)>0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>₹{fmt(parseFloat(laminateCost))} per door — not subject to margin · GST @ 18% applies</div>}
+        </div>
+
+        {/* Transport */}
+        <div style={{marginBottom:14,background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div className="lbl" style={{marginBottom:0}}>Transport</div>
+            <div style={{display:"flex",gap:4}}>
+              {[["per_sqft","₹/sq.ft"],["per_door","₹/door"]].map(([v,l])=>(<button key={v} className={"chip"+(transportMode===v?" on":"")} onClick={()=>setTransportMode(v)}>{l}</button>))}
+            </div>
+          </div>
+          <input type="number" min="0" value={transportRate} onChange={e=>setTransportRate(e.target.value)} placeholder={transportMode==="per_door"?"e.g. 500":"e.g. 15"}/>
+          {result&&parseFloat(transportRate)>=0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>
+            {transportMode==="per_door"
+              ?`₹${fmt(parseFloat(transportRate)||0)}/door × ${result.qty} = ₹${fmt((parseFloat(transportRate)||0)*result.qty)} total transport`
+              :`₹${fmt(parseFloat(transportRate)||0)}/sq.ft × ${result.area?.toFixed(2)} sq.ft × ${result.qty} = ₹${fmt((parseFloat(transportRate)||0)*result.area*result.qty)} total transport`
+            }
+          </div>}
         </div>
 
         <div style={{marginBottom:22}}>
@@ -1252,6 +1283,8 @@ function DoorFrameCalcTab({onAddToQuote}){
   const [horns,setHorns]=useState(false);
   const [transport,setTransport]=useState("100");
   const [laminateCost,setLaminateCost]=useState("");
+  const [transportMode,setTransportMode]=useState("per_sqft");
+  const [transportRate,setTransportRate]=useState("15");
   const [mouldingRate,setMouldingRate]=useState("");
   const [mouldingSides,setMouldingSides]=useState("1");
   const [added,setAdded]=useState(false);
@@ -1307,7 +1340,7 @@ function DoorFrameCalcTab({onAddToQuote}){
 
   const doorResult=useMemo(()=>{
     if(!effDoorW||!effDoorH) return null;
-    return calculate({doorType,variant,unit:"ft",width:effDoorW.toString(),height:effDoorH.toString(),qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost});
+    return calculate({doorType,variant,unit:"ft",width:effDoorW.toString(),height:effDoorH.toString(),qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost,transportMode,transportRate});
   },[doorType,variant,effDoorW,effDoorH,qty,margin,isMarine,laminate,groove,laminateJoint,glassGap,rebate,plasticPatty,int5509,int3614,teakLipping,laminateCost]);
 
   const frameResult=useMemo(()=>{
@@ -1418,6 +1451,23 @@ function DoorFrameCalcTab({onAddToQuote}){
               ):<div style={{fontSize:11,color:N.sub}}>Enter frame opening & section size first</div>}
             </div>
           )}
+
+          {/* Transport */}
+          <div style={{marginBottom:12,background:N.lite,border:`1px solid ${N.bdr}`,borderRadius:4,padding:"12px 14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div className="lbl" style={{marginBottom:0}}>Transport</div>
+              <div style={{display:"flex",gap:4}}>
+                {[["per_sqft","₹/sq.ft"],["per_door","₹/door"]].map(([v,l])=>(<button key={v} className={"chip"+(transportMode===v?" on":"")} onClick={()=>setTransportMode(v)}>{l}</button>))}
+              </div>
+            </div>
+            <input type="number" min="0" value={transportRate} onChange={e=>setTransportRate(e.target.value)} placeholder={transportMode==="per_door"?"e.g. 500":"e.g. 15"}/>
+            {doorResult&&parseFloat(transportRate)>=0&&<div style={{fontSize:10,color:N.sub,marginTop:4}}>
+              {transportMode==="per_door"
+                ?`₹${fmt(parseFloat(transportRate)||0)}/door × ${doorResult.qty} = ₹${fmt((parseFloat(transportRate)||0)*doorResult.qty)} total`
+                :`₹${fmt(parseFloat(transportRate)||0)}/sq.ft × ${doorResult.area?.toFixed(2)} sq.ft × ${doorResult.qty} = ₹${fmt((parseFloat(transportRate)||0)*doorResult.area*doorResult.qty)} total`
+              }
+            </div>}
+          </div>
 
           <div style={{marginBottom:4}}>
             <div className="lbl">Add-ons</div>
